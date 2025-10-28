@@ -48,25 +48,9 @@ Adversary: a single lab attacker VM (Kali) performing recon and scanning against
 - pfSense acts as firewall and routes/controls traffic between an **attacker subnet (LabNet)** and a **SIEM subnet (SiemNet / OPT1)**.  
 - Kali (attacker) lives on `LabNet`. Ubuntu (SIEM + UF / Splunk) lives on `SiemNet`.  
 - pfSense forwards its firewall logs to Splunk; Ubuntu forwards host logs to Splunk via the Splunk Universal Forwarder.  
-- Capture points: pfSense OPT1, pfSense LAN, Ubuntu NIC (and optional IDS sensor).
+- Capture points: pfSense SIEMOPT1, pfSense LAN, Ubuntu NIC (and optional IDS sensor).
 
 ---
-
-### Logical diagram (quick view)
-
-       Internet (optional)
-             |
-            WAN
-          [pfSense]
-         /    |    \
-   lab-net  OPT1   (other)
-    (LAN)  siem-net
-     |        |
-   Kali     Ubuntu (SIEM + UF / Splunk)
-                |
-             Splunk Indexer
-                |
-             (Storage)
 
 ## 3. Components & Roles
 - **pfSense (VM)** — edge firewall, DHCP/DNS, generates firewall logs and forwards via syslog to Splunk (UDP/TCP 1514).
@@ -105,16 +89,15 @@ Adversary: a single lab attacker VM (Kali) performing recon and scanning against
 ---
 
 ## 7. Security & Access Control
-- Admin accounts limited; Splunk admin uses secure password and is not used for day-to-day analysis.
+- Admin accounts limited; Splunk admin uses secure password and is not used for day-to-day analysis, but only for lab purposes.
 - Management ports (8000, 8089) restricted to lab-admin network; Splunk mgmt bound to localhost where possible for forwarder-only nodes.
 - TLS: None.
 
 ---
 
 ## 8. Deployment & Config Management
-- All Splunk config files (`props.conf.example`, `transforms.conf.example`, `inputs.conf.example`, dashboards) stored in this repo under `configs/` and `dashboards/`.
-- For multiple forwarders, use the Splunk Deployment Server or a simple `scp`/ansible script in `scripts/` to push files.
-- Document the exact path mapping and `app` names in the repo.
+- All Splunk config files (`props.conf.example`, `transforms.conf.example`, `inputs.conf.example`, dashboards) stored in this repo under `configs/` and `splunk/dashboards/`.
+- For multiple forwarders, use the Splunk Deployment Server.
 
 ---
 
