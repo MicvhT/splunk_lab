@@ -29,7 +29,7 @@ This document describes the SIEM lab architecture used for ingesting and analyzi
 
 Functional scope:
 - Collect pfSense syslog to `index=pfsense` (UDP/TCP 1514)
-- Collect Ubuntu host logs (`/var/log/syslog`, `/var/log/auth.log`) via UF to `index=hosts`
+- Collect Ubuntu host logs (`/var/log/syslog`, `/var/log/auth.log`) via UF to `index=ubuntu`
 - Provide parsing, field extraction, dashboards, and alerts for recon, port-scanning, brute-force, and beaconing simulations
 - Provide a testing playbook and scripts to simulate attacks
 
@@ -52,4 +52,29 @@ Adversary: a single lab attacker VM (Kali) performing recon and scanning against
 
 ## 2. High-level Topology
 *(See `diagrams/network-topology.png` for the diagram.)*
+
+**Short summary**  
+- pfSense routes/controls traffic between an **attacker subnet (lab-net)** and a **SIEM subnet (siem-net / OPT1)**.  
+- Kali (attacker) lives on `lab-net`. Ubuntu (SIEM + UF / Splunk) lives on `siem-net`.  
+- pfSense forwards its firewall logs to Splunk; Ubuntu forwards host logs to Splunk via the Universal Forwarder.  
+- Capture points: pfSense OPT1, pfSense LAN, Ubuntu NIC (and optional IDS sensor).
+
+---
+
+### Logical diagram (quick view)
+
+       Internet (optional)
+             |
+            WAN
+          [pfSense]
+         /    |    \
+   lab-net  OPT1   (other)
+    (LAN)  siem-net
+     |        |
+   Kali     Ubuntu (SIEM + UF / Splunk)
+                |
+             Splunk Indexer
+                |
+             (Storage)
+
 
