@@ -4,7 +4,7 @@
 Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
 
 - **Author:** Micah Thompson 
-- **Date:** 2025-10-28  
+- **Date:** 2025-10-29  
 - **Version:** 0.1  
 - **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
@@ -71,6 +71,10 @@ sudo nmap -sS -Pn --top-ports 50 $UBUNTU_IP -oN evidence/tc1-nmap-$(date +%Y%m%d
 sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc1-tcpdump-$(date +%Y%m%dT%H%M%S).log
 # while it runs, re-run the nc/ping commands on Kali
 ```
+
+## Expected Result
+
+---
 
 ## Environment / Variables
 
