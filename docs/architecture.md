@@ -72,7 +72,7 @@ Adversary: a single lab attacker VM (Kali) performing recon and scanning against
 
 ## 5. Indexing & Retention Policy
 - `pfsense` — hot/warm/cold retention default; expected daily ingest ~ X MB; retention = Y days.
-- `hosts` — retention = Z days; exclude large binary logs; use frozen to archive to external storage/local frozen path.
+- `ubuntu` — retention = Z days; exclude large binary logs; use frozen to archive to external storage/local frozen path.
 *(Indexing and Retention TBD)*
 
 ---
