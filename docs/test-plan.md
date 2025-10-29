@@ -1,3 +1,10 @@
+# SIEM Lab Test Plan
+
+**Purpose:**  
+Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
+
+
+```bash
 # ENV - edit before running tests
 KALI_IP=192.168.60.10
 KALI_HOSTNAME=kali
@@ -10,9 +17,3 @@ UF_PORT=9997               # UF -> Indexer port (default 9997)
 SYSLOG_PORT=1514           # pfSense -> Splunk syslog port (e.g., 1514)
 TIME_WINDOW='Last 15 minutes'
 ADMIN_EMAIL=you@example.com
-
-
-# SIEM Lab Test Plan
-
-**Purpose:**  
-Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
