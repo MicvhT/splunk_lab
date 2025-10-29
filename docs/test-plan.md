@@ -86,12 +86,13 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 - Optional: `evidence/tc1-nmap-<timestamp>.log`
 - Optional decisive capture: `evidence/tc1-tcpdump-<timestamp>.log`
 
-**Owner:** You
-**PRIORITY:** High
+**Owner:** You ,  **PRIORITY:** High
 
 ### TC1 - Pass/Fail Criteria
 - **PASS** if `nc` shows `succeeded` or `Connection refused` (proves reachability) OR tcpdump shows packets from `KALI_IP` to `UBUNTU_IP`.
 - **FAIL** if `nc`/tcpdump shows no packets and `No route to host`/`Operation timed out` persists. 
+
+![pfSense VirtualBox Network VLANS](../configs/pfsense/pfSense_networking_config1.png)
 
 ---
 
