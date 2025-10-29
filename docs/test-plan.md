@@ -18,7 +18,7 @@ Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalizatio
 
 ---
 
-### TC1 — Network reachability (Kali → Ubuntu)
+### TC1 — Network Reachability (Kali → Ubuntu)
 
 **Objective:**  
 Verify basic network reachability from Kali to the Ubuntu target (the host running the UF / Splunk or the SIEM target). This proves VMs are on the expected internal networks and common ports respond as expected.
@@ -72,13 +72,30 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 # while it runs, re-run the nc/ping commands on Kali
 ```
 
-## Expected Result
+### TC1 - Expected Results
 - `ip -br addr` on Kali shows `KALI_IP` and on Ubuntu shows `UBUNTU_IP`
 - `nc -vnz` produces `succeeded` or `Connection refused` for reachable host (not `No route to host` or `Operation timed out`).
+- `ping` receives replies if ICMP is allowed; if ICMP is blocked, `nc`/`tcpdump` to prove connectivity.
+- if tcpdump is run on indexer, you should see packets from `KALI_IP` to `UBUNTU_IP`
+
+### TC1 - Evidence To Collect
+- `evidence/tc1-kali-ip-<timestamp>.log`
+- `evidence/tc1-ubuntu-ip-<timestamp>.log`
+- `evidence/tc1-nc-<timestamp>.log`
+- `evidence/tc1-ping-<timestamp>.log`
+- Optional: `evidence/tc1-nmap-<timestamp>.log`
+- Optional decisive capture: `evidence/tc1-tcpdump-<timestamp>.log`
+
+**Owner:** You
+**PRIORITY:** High
+
+### TC1 - Pass/Fail Criteria
+- **PASS** if `nc` shows `succeeded` or `Connection refused` (proves reachability) OR tcpdump shows packets from `KALI_IP` to `UBUNTU_IP`.
+- **FAIL** if `nc`/tcpdump shows no packets and `No route to host`/`Operation timed out` persists. 
 
 ---
 
-## Environment / Variables
+### Environment / Variables
 
 ```bash
 
