@@ -48,9 +48,9 @@ cat evidence/tc1-ubuntu-ip-*.log
 nc -vnz $UBUNTU_IP 22 80 443 2>&1 | tee evidence/tc1-nc-$(date +%Y%m%dT%H%M%S).log
 ```
 **Interpretation**
-`succeeded` or `open` = reachable and port open
-`Connection refused` = host reachable but port closed (also acceptable to show reachability).
-`No route to host` / `Operation timed out` = network problem.
+- `succeeded` or `open` = reachable and port open
+- `Connection refused` = host reachable but port closed (also acceptable to show reachability).
+- `No route to host` / `Operation timed out` = network problem.
 
 4. From **Kali**: quick ICMP check.
 ```bash
@@ -73,6 +73,8 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 ```
 
 ## Expected Result
+- `ip -br addr` on Kali shows `KALI_IP` and on Ubuntu shows `UBUNTU_IP`
+- `nc -vnz` produces `succeeded` or `Connection refused` for reachable host (not `No route to host` or `Operation timed out`).
 
 ---
 
