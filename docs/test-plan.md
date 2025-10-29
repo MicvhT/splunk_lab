@@ -27,22 +27,50 @@ Verify basic network reachability from Kali to the Ubuntu target (the host runni
 - `ENV` block in this doc populated (`KALI_IP`, `UBUNTU_IP`, `INDEXER_IP`, etc.).
 - VMs powered on and connected to the correct VirtualBox internal networks (e.g., `LabNet`, `SiemNet`).
 - pfSense rules allow traffic between Kali and Ubuntu (or pfSense not in the path for the chosen internal network).
-- You have a terminal on Kali and a terminal on Ubuntu (target/indexer).
+- Terminal open on Kali (attacker) and a terminal open on Ubuntu (target/indexer).
 
 **Steps**
-1. On **Kali**: confirm IP and interfaces.
+1. From **Kali**: confirm IP and interfaces.
 ```bash
 hostname && ip -br addr > evidence/tc1-kali-ip-$(date +%Y%m%dT%H%M%S).log
 cat evidence/tc1-kali-ip-*.log
 ```
 
-2. On Ubuntu: confirm IP and interfaces. 
+2. From **Ubuntu**: confirm IP and interfaces. 
 ```bash
 hostname && ip -br addr > evidence/tc1-ubuntu-ip-$(date +%Y%m%dT%H%M%S).log
 cat evidence/tc1-ubuntu-ip-*.log
 ```
 
-3. From Kali: test TCP connectivity to common target ports (no DNS lookups).
+3. From **Kali**: test TCP connectivity to common target ports (no DNS lookups).
+```bash
+# run from Kali; saves stdout to evidence file
+nc -vnz $UBUNTU_IP 22 80 443 2>&1 | tee evidence/tc1-nc-$(date +%Y%m%dT%H%M%S).log
+```
+**Interpretation**
+`succeeded` or `open` = reachable and port open
+`Connection refused` = host reachable but port closed (also acceptable to show reachability).
+`No route to host` / `Operation timed out` = network problem.
+
+4. From **Kali**: quick ICMP check.
+```bash
+ping -c 4 $UBUNTU_IP | tee evidence/tc1-ping-$(date +%Y%m%dT%H%M%S).log
+```
+
+**Note**:ICMP may be blocked by host firewall/pfSense; ping failure ≠ always broken network.
+
+5. Optional deeper network probe (run from **Kali**):
+```bash
+# light SYN scan (safe, local lab)
+sudo nmap -sS -Pn --top-ports 50 $UBUNTU_IP -oN evidence/tc1-nmap-$(date +%Y%m%dT%H%M%S).log
+```
+
+6. Optional decisive capture (run on Indexer/Ubuntu to see packets):
+```bash
+# on indexer/Ubuntu
+sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc1-tcpdump-$(date +%Y%m%dT%H%M%S).log
+# while it runs, re-run the nc/ping commands on Kali
+```
 
 ## Environment / Variables
 
@@ -51,10 +79,10 @@ cat evidence/tc1-ubuntu-ip-*.log
 KALI_IP=192.168.60.3
 KALI_HOSTNAME=mikeytkali
 UBUNTU_HOSTNAME=mikeyt-ubuntu
-UBUNTU_IP=192.168.61.10    # forwarder host / Splunk host (if same as indexer)
-INDEXER_IP=192.168.61.10   # Splunk indexer IP (replace if different)
+UBUNTU_IP=192.168.61.10    # forwarder host / Splunk host
+INDEXER_IP=192.168.61.10   # Splunk indexer IP
 INDEX_PFSENSE=pfsense
-INDEX_UBUNTU=ubuntu         # index where host logs land (e.g., ubuntu or hosts)
-UF_PORT=9997               # UF -> Indexer port (default 9997)
-SYSLOG_PORT=1514           # pfSense -> Splunk syslog port (e.g., 1514)
+INDEX_UBUNTU=ubuntu         # index where host logs land
+UF_PORT=9997               # UF -> Indexer port
+SYSLOG_PORT=1514           # pfSense -> Splunk syslog port
 TIME_WINDOW='Last 15 minutes'
