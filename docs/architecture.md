@@ -64,7 +64,7 @@ Adversary: a single lab attacker VM (Kali) performing recon and scanning against
 
 ## 4. Data Flows
 - `pfSense -> Splunk Indexer` : syslog -> `index=pfsense`, sourcetype `pfsense:syslog` (UDP/TCP 1514)
-- `Ubuntu UF -> Splunk Indexer` : UF TCP -> `index=ubuntu`, sourcetype `linux:auth`, `syslog` (TCP 9997)
+- `Ubuntu UF -> Splunk Indexer` : UF TCP -> `index=ubuntu`, sourcetype `linux_secure`, `syslog` (TCP 9997)
 - `Optional IDS -> Splunk` : alerts -> `index=ids`, sourcetype `suricata:alert`
 - `Splunk internal` : index `_internal` for forwarder/ingest health
 

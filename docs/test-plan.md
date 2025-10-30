@@ -12,7 +12,7 @@ Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalizatio
 
 ## 1. Overview & Objectives
 - Verify logs flow end-to-end from test generator (Kali) → pfSense → Ubuntu forwarder → Splunk indexer.  
-- Confirm `sourcetype` assignment (e.g. `linux:auth`) and field extraction for `src_ip`, `dst_ip`, `dst_port`, `action`.  
+- Confirm `sourcetype` assignment (e.g. `linux_secure`) and field extraction for `src_ip`, `dst_ip`, `dst_port`, `action`.  
 - Validate dashboard panels and saved-search alerts (recon, port scans, SSH brute force).  
 - Provide reproducible steps, expected outcomes, and troubleshooting commands.
 
@@ -91,6 +91,142 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 ### TC1 - Pass/Fail Criteria
 - **PASS** if `nc` shows `succeeded` or `Connection refused` (proves reachability) OR tcpdump shows packets from `KALI_IP` to `UBUNTU_IP`.
 - **FAIL** if `nc`/tcpdump shows no packets and `No route to host`/`Operation timed out` persists. 
+
+### Networking/Troubleshooting
+- If `No route to host` or no tcpdump lines:
+    - Check VirtualBox network mode for each VM (Machine → Settings → Network). Make sure both Kali and pfSense/Ubuntu adapters are on the same named Internal Network (e.g., `LabNet` / `SiemNet`) where applicable. 
+    - Verify pfSense interface assignments and firewall rules (LAN/SIEMOPT1) if pfSense is in the path.
+    - On Kali/Ubuntu, inspect `ip route` to ensure default gateway points to pfSense where intended.
+    - Re-run `ip -br addr` on both VMs and confirm the IPs used in commands match actual interface IPs.
+
+---
+
+### TC2 — SSH auth failure generation (host logs → Splunk)
+
+**Objective:**  
+Generate failed SSH login attempts from Kali to the Ubuntu host and verify the failures are: 
+1. written to `/var/log/auth.log` on the host 
+2. monitored by the Universal Forwarder 
+3. indexed in Splunk with `sourcetype=linux_secure` (index = `$INDEX_UBUNTU`).
+
+**Preconditions**
+- ENV block is populated (`KALI_IP`, `UBUNTU_IP`, `INDEXER_IP`, `INDEX_HOSTS`, `UF_PORT`).
+- Universal Forwarder installed and running on Ubuntu, configured to monitor `/var/log/auth.log` and forward to `INDEXER_IP:UF_PORT`.
+- Splunk indexer receiving data and time picker set to the test window (e.g., Last 15 minutes).
+- SSH server running on Ubuntu (sshd). If SSH is disabled, use `logger` fallback commands below.
+
+**Steps**
+1. (Optional) Confirm sshd is running on Ubuntu:
+```bash
+# on Ubuntu
+sudo systemctl status sshd --no-pager
+```
+
+2. On **Kali** - generate multiple failed SSH login attempts (fast loop):
+```bash
+# run on Kali to produce failed attempts referencing the target IP and save the output
+# on Kali
+for i in {1..8}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done 2>&1 | tee evidence/tc2-kali-ssh-attempts-$(date +%Y%m%dT%H%M%S).log
+```
+
+If SSH is blocked/unavailable on the host, use `logger` to create an auth-like message on the Ubuntu host (run this on Ubuntu, simulates a local syslog message):
+```bash
+# on Ubuntu (simulate an auth failure)
+logger -p auth.warning "FAILED LOGIN TEST invaliduser from $KALI_IP"
+# save it
+sudo tail -n 40 /var/log/auth.log | tee evidence/tc2-authlog-simulated-$(date +%Y%m%dT%H%M%S).log
+```
+
+3. On **Ubuntu**: verify host log recorded the attempts and save evidence:
+```bash
+# check and save last matching lines
+sudo grep "$KALI_IP" /var/log/auth.log | tail -n 200 | tee evidence/tc2-authlog-$(date +%Y%m%dT%H%M%S).log
+# also show last 100 lines for context
+sudo tail -n 100 /var/log/auth.log | tee evidence/tc2-authlog-last100-$(date +%Y%m%dT%H%M%S).log
+```
+
+4. On **Ubuntu (forwarder host)**: confirm the UF monitors the file and is connected:
+```bash
+# show effective monitor stanzas
+sudo /opt/splunkforwarder/bin/splunk btool inputs list --debug | egrep -A4 '/var/log/auth.log|monitor:///var/log/auth.log' | tee evidence/tc2-btool-inputs-$(date +%Y%m%dT%H%M%S).log
+
+# list forward-server(s)
+sudo /opt/splunkforwarder/bin/splunk list forward-server | tee evidence/tc2-forward-server-$(date +%Y%m%dT%H%M%S).log
+
+# tail forwarder log for send/connect errors
+sudo tail -n 200 /opt/splunkforwarder/var/log/splunk/splunkd.log | egrep -i 'connect|retry|tcpout|error|queue' | tee evidence/tc2-uf-log-$(date +%Y%m%dT%H%M%S).log
+```
+
+5. In **Splunk Web (Search)**: run these searches (time picker = Last 15 minutes) and save a sample `_raw` event:
+```bash
+# 1) Very broad: any event with the Kali IP
+index=* "$KALI_IP" | table _time index host sourcetype _raw | sort -_time | head 50
+
+# 2) Auth-specific: find failed passwords and extract src_ip
+index=$INDEX_HOSTS sourcetype=linux_secure "Failed password" OR "Invalid user" earliest=-15m
+| rex "(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+| search src_ip="$KALI_IP"
+| table _time host sourcetype src_ip _raw
+| sort -_time
+```
+- Save one `_raw` event to a text file (copy/paste event body) and store as:
+`evidence/tc2-splunk-event-$(date +%Y%m%dT%H%M%S).txt`
+
+6. (Optional) If nothing appears in Splunk but host logs exist, run a decisive packet trace on the indexer while repeating the Kali SSH loop to prove network reachability:
+```bash
+# on indexer
+sudo tcpdump -n -i any host $KALI_IP and host $INDEXER_IP -c 40 -vv | tee evidence/tc2-tcpdump-$(date +%Y%m%dT%H%M%S).log
+```
+
+### TC2 - Expected Results
+- Ubuntu `/var/log/auth.log` contains multiple `Failed password` `or Invalid user lines` that mention `$KALI_IP`.
+- UF `btool` output shows a `monitor:///var/log/auth.log` stanza with `sourcetype = linux_secure` (or the sourcetype you expect) and `index = $INDEX_UBUNTU`.
+- Splunk search (index = $INDEX_UBUNTU, sourcetype = linux_secure) returns at least one event containing $KALI_IP within 60 seconds of generation.
+
+### TC2 - Evidence To Collect
+- `evidence/tc2-kali-ssh-attempts-YYYYMMDDTHHMMSS.log` (Kali terminal output)
+
+- `evidence/tc2-authlog-YYYYMMDDTHHMMSS.log` (Ubuntu grep of auth.log)
+
+- `evidence/tc2-btool-inputs-YYYYMMDDTHHMMSS.log` (UF btool output)
+
+- `evidence/tc2-forward-server-YYYYMMDDTHHMMSS.log` (UF forward-server output)
+
+- `evidence/tc2-uf-log-YYYYMMDDTHHMMSS.log` (UF splunkd.log tail)
+
+- `evidence/tc2-splunk-event-YYYYMMDDTHHMMSS.txt` (one sample Splunk _raw event)
+
+- Optional: `evidence/tc2-tcpdump-YYYYMMDDTHHMMSS.log` or `.pcap`
+
+**Owner:** You ,  **PRIORITY:** High
+
+### TC2 - Pass/Fail Criteria
+- PASS if: `host /var/log/auth.log` shows `Failed password` events from `$KALI_IP` AND Splunk returns at least one event in `index=$INDEX_HOSTS` with `sourcetype=linux_secure` referencing `$KALI_IP` within 60 seconds.
+
+- FAIL if: host log contains events but Splunk returns no events and UF btool shows monitor + forward-server is Active — then UF/Indexer ingestion issue to troubleshoot. If host log does not contain events, network/ssh reachability problem — go back to TC1.
+
+### Troubleshooting
+- If **no host lines** on Ubuntu:
+```bash
+# on Ubuntu
+sudo tail -n 200 /var/log/auth.log
+sudo ss -ltnp | egrep '22|sshd' || true
+sudo systemctl status sshd
+# re-run SSH attempt from Kali and watch auth.log live
+sudo tail -f /var/log/auth.log
+```
+- If **UF Forwarder disconnected**: recreate/update /opt/splunkforwarder/etc/system/local/outputs.conf with:
+```bash
+[tcpout]
+defaultGroup = indexers
+
+[tcpout:indexers]
+server = $INDEXER_IP:$UF_PORT
+```
+then restart UF:
+```bash
+sudo /opt/splunkforwarder/bin/splunk restart
+```
 
 ---
 
