@@ -185,25 +185,18 @@ sudo tcpdump -n -i any host $KALI_IP and host $INDEXER_IP -c 40 -vv | tee eviden
 
 ### TC2 - Evidence To Collect
 - `evidence/tc2-kali-ssh-attempts-YYYYMMDDTHHMMSS.log` (Kali terminal output)
-
 - `evidence/tc2-authlog-YYYYMMDDTHHMMSS.log` (Ubuntu grep of auth.log)
-
 - `evidence/tc2-btool-inputs-YYYYMMDDTHHMMSS.log` (UF btool output)
-
 - `evidence/tc2-forward-server-YYYYMMDDTHHMMSS.log` (UF forward-server output)
-
 - `evidence/tc2-uf-log-YYYYMMDDTHHMMSS.log` (UF splunkd.log tail)
-
 - `evidence/tc2-splunk-event-YYYYMMDDTHHMMSS.txt` (one sample Splunk _raw event)
-
 - Optional: `evidence/tc2-tcpdump-YYYYMMDDTHHMMSS.log` or `.pcap`
 
 **Owner:** You ,  **PRIORITY:** High
 
 ### TC2 - Pass/Fail Criteria
-- PASS if: `host /var/log/auth.log` shows `Failed password` events from `$KALI_IP` AND Splunk returns at least one event in `index=$INDEX_HOSTS` with `sourcetype=linux_secure` referencing `$KALI_IP` within 60 seconds.
-
-- FAIL if: host log contains events but Splunk returns no events and UF btool shows monitor + forward-server is Active — then UF/Indexer ingestion issue to troubleshoot. If host log does not contain events, network/ssh reachability problem — go back to TC1.
+- **PASS** if: `host /var/log/auth.log` shows `Failed password` events from `$KALI_IP` AND Splunk returns at least one event in `index=$INDEX_HOSTS` with `sourcetype=linux_secure` referencing `$KALI_IP` within 60 seconds.
+- **FAIL** if: host log contains events but Splunk returns no events and UF btool shows monitor + forward-server is Active — then UF/Indexer ingestion issue to troubleshoot. If host log does not contain events, network/ssh reachability problem — go back to TC1.
 
 ### Troubleshooting
 - If **no host lines** on Ubuntu:
@@ -230,10 +223,129 @@ sudo /opt/splunkforwarder/bin/splunk restart
 
 ---
 
+### TC3 — Packet Capture On Indexer (decisive network proof)
+
+**Objective:**  
+Confirm packets from the attacker (Kali) reach the indexer/Ubuntu (Splunk) and verify whether they are sent to the expected listener ports (UF TCP 9997, pfSense syslog 1514), by capturing packets on the indexer and analyzing them.
+
+**Preconditions**
+- `ENV` block populated (`KALI_IP`, `INDEXER_IP`, `UBUNTU_IP`, `UF_PORT`, `SYSLOG_PORT`).
+- You have sudo on the indexer/Ubuntu machine to run tcpdump.
+- Enough disk space to store a small pcap file in `siem_lab/evidence/`.
+
+**High-level approach**
+1. Start a short tcpdump on the indexer capturing traffic between Kali and the indexer.
+2. On Kali, run the test traffic (SSH attempts, nc, nmap, syslog test).
+3. Stop tcpdump and analyze the pcap for connections to `INDEXER_IP:$UF_PORT` and `INDEXER_IP:$SYSLOG_PORT`.
+4. Save human-readable extracts and the raw pcap as evidence.
+
+---
+
+**Steps**
+1. Start decisive capture on the indexer (Ubuntu where Splunk runs)
+```bash
+# create evidence dir if not exists
+mkdir -p ~/siem_lab/evidence
+
+# capture only traffic between KALI_IP and INDEXER_IP, write to pcap (raw)
+sudo tcpdump -n -i any host $KALI_IP and host $INDEXER_IP -w ~/siem_lab/evidence/tc3-traffic-$KALI_IP-to-$INDEXER_IP-$(date +%Y%m%dT%H%M%S).pcap -c 200
+# -n: numeric IPs (no DNS), -i any: all interfaces, -w: write pcap, -c: stop after 200 packets
+```
+- Keep the terminal running; tcpdump will exit after `-c` packets or Ctrl+C.
+- If you expect a lot of traffic, increase -c or omit and stop with Ctrl+C.
+
+2. While tcpdump is running: generate test traffic from Kali
+Run these from Kali (copy output to evidence on Kali as well):
+```bash
+# 1) SSH failed attempts (auth failures used in TC2)
+for i in {1..8}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done
+
+# 2) Netcat checks to UF and web ports
+nc -vnz $INDEXER_IP $UF_PORT 2>&1 | tee ~/siem_lab/evidence/tc3-nc-uf-$(date +%Y%m%dT%H%M%S).log
+nc -vnz $INDEXER_IP 22 80 443 2>&1 | tee ~/siem_lab/evidence/tc3-nc-ports-$(date +%Y%m%dT%H%M%S).log
+
+# 3) If you want syslog test (pfSense->Splunk style), send a UDP syslog
+echo "<134>1 $(date -Iseconds) TEST pfSense->Splunk: test from $KALI_IP" | nc -u $INDEXER_IP $SYSLOG_PORT
+```
+
+3. Stop capture (if you used Ctrl+C or waited for -c to finish)
+
+4. Produce readable extracts (on indexer)
+```bash
+PCAP=~/siem_lab/evidence/tc3-traffic-$KALI_IP-to-$INDEXER_IP-*.pcap
+
+# A) quick summary with tcpdump (text)
+sudo tcpdump -n -r $PCAP -vv | tee ~/siem_lab/evidence/tc3-tcpdump-readable-$(date +%Y%m%dT%H%M%S).log
+
+# B) filter only traffic to UF_PORT or SYSLOG_PORT (text)
+sudo tcpdump -n -r $PCAP -vv "(tcp and dst port $UF_PORT) or (udp and dst port $SYSLOG_PORT) or (tcp and src port $UF_PORT) or (udp and src port $SYSLOG_PORT)" | tee ~/siem_lab/evidence/tc3-uf-syslog-only-$(date +%Y%m%dT%H%M%S).log
+
+# C) optionally convert pcap to json/text via tshark (if available)
+sudo tshark -r $PCAP -T pdml > ~/siem_lab/evidence/tc3-pdml-$(date +%Y%m%dT%H%M%S).xml 2>/dev/null || true
+```
+
+5. Check Splunk internal for incoming connections at the same time. In Splunk Web (Search) or CLI:
+```bash
+# in Splunk Search (time matching capture window)
+index=_internal (TcpInput OR tcpin OR "Incoming connection" OR tcpout) | tail 50
+```
+Or on indexer shell:
+```bash
+# show listening sockets
+sudo ss -ltnp | egrep "$UF_PORT|$SYSLOG_PORT|8000|8089" || true
+
+# tail Splunk logs for tcp input messages
+sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log | egrep -i 'TcpInput|tcpin|incoming connection|listening|reject|error' -n | tee ~/siem_lab/evidence/tc3-splunkd-internal-$(date +%Y%m%dT%H%M%S).log
+```
+
+### TC3 - Evidence To Collect
+- Raw pcap: siem_lab/evidence/`tc3-traffic-<kali>-to-<indexer>-YYYYMMDDTHHMMSS.pcap`
+- Human-readable extracts: `siem_lab/evidence/tc3-tcpdump-readable-<timestamp>.log` and `tc3-uf-syslog-only-<timestamp>.log`
+- Kali-side evidence of generated traffic: `siem_lab/evidence/tc3-nc-uf-...log, tc3-nmap-...log`
+- Splunk/internal evidence: `siem_lab/evidence/tc3-splunkd-internal-<timestamp>.log`
+
+### TC3 - Pass/Fail Criteria
+- **PASS** if tcpdump shows packets from `KALI_IP` to `INDEXER_IP` destined for the expected port(s) (TCP 9997 for UF or UDP/TCP 1514 for syslog) AND Splunk shows corresponding activity (events or TCP input messages in `_internal`) within the same time window.
+- **FAIL** if tcpdump shows no packets at all between KALI and INDEXER, or packets are visible but not reaching intended port (e.g., RSTs/no listener), or Splunk listener returns errors in logs.
+
+### Troubleshooting
+1. Confirm `KALI_IP` is correct on the Kali VM: `ip -br addr` and use the same IP in capture and tests.
+2. On indexer, run `sudo ss -ltnp` to ensure Splunk or UF is listening on `UF_PORT`.
+3. Confirm capture interface — `sudo tcpdump -D` lists interfaces; use the correct one or `-i any`.
+4. If capture shows packets arriving but Splunk not receiving, check `sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log` for `TcpInput` / connection messages.
+5. If capture shows no packets, check VirtualBox network settings and pfSense firewall rules; run `tcpdump` on the Kali host too to verify it sent them.
+6. If UDP syslog packets arrive at the indexer/host’s network stack on the port you configured but Splunk not parsing, ensure Splunk has a UDP input configured for that port (Settings → Data inputs → UDP).
+
+---
+
+### TC4 — Universal Forwarder (UF) connectivity & inputs verification
+
+**Objective:**  
+Verify the Splunk Universal Forwarder on the Ubuntu host is correctly configured to monitor `/var/log/auth.log` (and other host files), is connected to the indexer (`INDEXER_IP:UF_PORT`), and is successfully forwarding events.
+
+**Preconditions**
+- `ENV` block populated (`UBUNTU_IP`, `INDEXER_IP`, `UF_PORT`, `INDEX_UBUNTU`).
+- UF installed under `/opt/splunkforwarder/` and you have `sudo` on the forwarder.
+- Indexer reachable from forwarder (see TC1/TC3).
+
+---
+
+## Steps (run on the **forwarder** first)
+
+1. **Check UF service / binary availability**
+```bash
+# check splunk UF binary exists & show status
+sudo /opt/splunkforwarder/bin/splunk status 2>/dev/null || echo "splunk forwarder binary not found"
+# if installed as a systemd service (some installs), also:
+sudo systemctl status splunkd --no-pager || true
+```
+- Expected: splunkd shown as running, or /opt/splunkforwarder/bin/splunk responds (prints status).
+
+
+
 ### Environment / Variables
 
 ```bash
-
 KALI_IP=192.168.60.3
 KALI_HOSTNAME=mikeytkali
 UBUNTU_HOSTNAME=mikeyt-ubuntu
@@ -244,3 +356,4 @@ INDEX_UBUNTU=ubuntu         # index where host logs land
 UF_PORT=9997               # UF -> Indexer port
 SYSLOG_PORT=1514           # pfSense -> Splunk syslog port
 TIME_WINDOW='Last 15 minutes'
+```
