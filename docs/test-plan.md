@@ -330,9 +330,8 @@ Verify the Splunk Universal Forwarder on the Ubuntu host is correctly configured
 
 ---
 
-## Steps (run on the **forwarder** first)
-
-1. **Check UF service / binary availability**
+**Steps (run on the forwarder first)**
+1. Check UF service / binary availability
 ```bash
 # check splunk UF binary exists & show status
 sudo /opt/splunkforwarder/bin/splunk status 2>/dev/null || echo "splunk forwarder binary not found"
@@ -341,7 +340,109 @@ sudo systemctl status splunkd --no-pager || true
 ```
 - Expected: splunkd shown as running, or /opt/splunkforwarder/bin/splunk responds (prints status).
 
+2. Confirm/verify forward-server target(s):
+```bash 
+sudo /opt/splunkforwarder/bin/splunk list forward-server 2>&1 | tee ~/siem_lab/evidence/tc4-forward-server-$(date +%Y%m%dT%H%M%S).log
+```
+- Expected: line like:
+```bash
+$INDEXER_IP:$UF_PORT (Active)
+```
+- If it shows `Disconnected` or nothing, UF is not connected.
 
+3. Show effected monitored inputs (use btool)
+```bash
+sudo /opt/splunkforwarder/bin/splunk btool inputs list --debug | egrep -A6 '/var/log/auth.log|monitor:///var/log/auth.log' | tee ~/siem_lab/evidence/tc4-btool-inputs-$(date +%Y%m%dT%H%M%S).log
+```
+- Expected: a stanza similar to:
+```bash
+[monitor:///var/log/auth.log]
+index = ubuntu
+sourcetype = linux_secure
+disabled = false
+```
+- If `sourcetype` or `index` are missing, the forwarder will send raw source without the expected metadata.
+
+4. Check forwarder logs for connection / send errors:
+```bash
+sudo tail -n 300 /opt/splunkforwarder/var/log/splunk/splunkd.log | egrep -i 'connect|retry|tcpout|error|tcpout-server|forwarder' -n | tee ~/siem_lab/evidence/tc4-uf-log-$(date +%Y%m%dT%H%M%S).log
+```
+- What to look for: repeated `Retry` messages, `tcpout` errors, or `Unable to connect to` indicate network/auth issues. Successful connect lines mention `Established connection to` or `TcpOutputProc` messages.
+
+5. Test TCP reachability from UF to indexer (quick network test)
+```bash
+# use nc to test TCP to the indexer port (9997)
+nc -vz $INDEXER_IP $UF_PORT 2>&1 | tee ~/siem_lab/evidence/tc4-nc-$(date +%Y%m%dT%H%M%S).log
+```
+
+6. **(OPTIONAL)** Force-forward a small test event
+- Use `logger` on the forwarder to generate a local syslog event that should be monitored by the UF (only if `/var/log/syslog` or `/var/log/auth.log` is being watched):
+```bash
+logger -t SIEM_TEST "SIEM_TEST_EVENT from $HOSTNAME at $(date -Iseconds)" && echo "logger sent" | tee ~/siem_lab/evidence/tc4-logger-sent-$(date +%Y%m%dT%H%M%S).log
+# saves to file
+# then wait ~10-30s and check UF logs and Splunk Search
+```
+
+7. Cross-checks (run on the indexer / Splunk host)
+```bash
+# on indexer
+sudo ss -ltnp | egrep "$UF_PORT|8000|8089" || true
+# or
+sudo netstat -tulpen 2>/dev/null | egrep "$UF_PORT|splunk" || true
+```
+- Expected: splunkd listening on TCP `9997` (or whatever UF_PORT you configured). 
+
+8. Check indexer internal logs for inbound forwarder connections in Splunk Web (Search) or via CLI:
+```bash
+# In Splunk Web (Search), set time window to last 15m:
+index=_internal component=TcpInput OR tcpin OR "incoming" | sort - _time | head 50
+
+# OR on indexer shell (tail splunkd.log)
+sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log | egrep -i 'TcpInput|tcpin|incoming connection|forwarder' -n | tee ~/siem_lab/evidence/tc4-indexer-splunkd-$(date +%Y%m%dT%H%M%S).log
+```
+- Expected: messages showing an incoming connection from the forwarder IP (UBUNTU_IP) to the indexer.
+
+9. Search for test events or recent forwarder events
+In Splunk Web (Search & Reporting), time range = Last 15 minutes, run:
+```bash
+# quick check for forwarder host in any index
+host="$UBUNTU_HOSTNAME" OR host="$UBUNTU_IP" | stats count by index, sourcetype | sort - count
+
+# specifically check expected index and sourcetype
+index=$INDEX_HOSTS sourcetype=linux:auth $UBUNTU_IP | table _time host sourcetype _raw | sort -_time | head 20
+```
+
+### TC4 - Evidence to Collect
+- `siem_lab/evidence/tc4-forward-server-YYYYMMDDTHHMMSS.log` (output of splunk list forward-server)
+- `siem_lab/evidence/tc4-btool-inputs-YYYYMMDDTHHMMSS.log` (btool inputs)
+- `siem_lab/evidence/tc4-uf-log-YYYYMMDDTHHMMSS.log` (tail of UF splunkd.log)
+- `siem_lab/evidence/tc4-nc-YYYYMMDDTHHMMSS.log` (nc reachability test)
+- `siem_lab/evidence/tc4-logger-sent-YYYYMMDDTHHMMSS.log` (if used)
+- `siem_lab/evidence/tc4-indexer-splunkd-YYYYMMDDTHHMMSS.log` (indexer splunkd tail)
+
+
+### TC4 - Pass/Fail 
+**PASS** if:
+    - `splunk list forward-server` shows `INDEXER_IP:UF_PORT (Active)` for the forwarder, AND
+    - `btool inputs` shows `monitor:///var/log/auth.log` with `sourcetype = linux_secure` (or configured value), AND
+    - Splunk indexer shows incoming connection logs (`TcpInput`) and at least one event from the forwarder host appears in `index=$INDEX_UBUNTU` within 60 seconds of test generation.
+
+**FAIL** if:
+    - `splunk list forward-server` shows `Disconnected`/no server, OR
+    - `btool inputs` does not include the expected monitor stanza, OR
+    - UF logs show persistent `Retry` or `Unable to connect` errors, OR
+    - No events appear in Splunk despite host logs containing the test event.
+
+### Troubleshooting
+
+---
+
+### TC6 — pfSense syslog ingestion (optional)
+### TC7 — Dashboard validation
+### TC8 — Alert test (saved search)
+
+
+---
 
 ### Environment / Variables
 
