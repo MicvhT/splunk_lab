@@ -452,13 +452,148 @@ EOF
 sudo chown -R splunk:splunk /opt/splunkforwarder/etc/system/local
 sudo /opt/splunkforwarder/bin/splunk restart
 ```
+- If inputs missing or wrong sourcetype
+```bash
+sudo tee /opt/splunkforwarder/etc/system/local/inputs.conf > /dev/null <<'EOF'
+[monitor:///var/log/auth.log]
+sourcetype = linux:auth
+index = $INDEX_HOSTS
+disabled = false
+EOF
+sudo chown -R splunk:splunk /opt/splunkforwarder/etc/system/local
+sudo /opt/splunkforwarder/bin/splunk restart
+```
+- If UF logs show permission errors — ensure correct ownership:
+```bash
+sudo chown -R splunk:splunk /opt/splunkforwarder
+```
+- If firewall blocks outgoing TCP to indexer, adjust firewall rules in pfSense or through command line. 
 
 ---
 
-### TC6 — pfSense syslog ingestion (optional)
-### TC7 — Dashboard validation
-### TC8 — Alert test (saved search)
+### TC5 — Search & sourcetype verification in Splunk
 
+**Objective:**  
+Confirm events from the Ubuntu forwarder (host) are indexed, discover the *actual* `sourcetype`(s) assigned, and update/author queries and dashboard panels so they reliably surface the host events (SSH auth failures, host logs).
+
+**Preconditions**
+- ENV block populated (`KALI_IP`, `UBUNTU_IP`, `INDEX_UBUNTU`, etc.).
+- You have Splunk Web access and permission to run searches, save events, and edit dashboards/saved searches.
+- You have generated test events (TC2) and/or completed network proof (TC3).
+
+---
+
+**Steps**
+1. Set time picker to the test window
+- In Splunk Web Search, set the time range to `Last 15 minutes` (or the period you ran tests).
+
+2. Find which sourcetypes exist for the host or IP (fast)
+- By **host**:
+```bash
+index=* host="$UBUNTU_HOSTNAME" | stats count by index, sourcetype | sort - count
+```
+- By **IP**:
+```bash
+index=* "$KALI_IP" | stats count by index, sourcetype | sort - count
+```
+
+3. If you only know the index (search broadly)
+```bash
+index=$INDEX_HOSTS | stats count by sourcetype | sort - count
+```
+- Record the top 3 sourcetypes you see. These are the values to use (or normalize) in dashboards/searches.
+
+4. Find sample events and save one _raw event to evidence
+- Broad search to find an auth failure event:
+```bash
+index=$INDEX_UBUNTU ("Failed password" OR "Invalid user" OR "authentication failure" OR "SIEM_TEST_EVENT") | head 20
+```
+- Click a representative event → View → Raw. Copy the `_raw` text and save to a file locally:
+```bash
+evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt
+```
+- Also note the `sourcetype` value shown in the event's metadata.
+
+5. Extract fields from the sample _raw (ad-hoc rex)
+- Use rex to extract the source IP and user (example handles common auth formats):
+```bash
+index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
+| rex field=_raw "(?i)(?:from|rhost|SRC)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+| rex field=_raw "(?i)(?:for|user|invalid user)[=:\s]*(?<user>[\w\-\.\@]+)"
+| table _time host sourcetype src_ip user _raw
+| sort - _time
+```
+- Adjust the second rex if your _raw uses different phrasing for user names
+
+6. If sourcetypes vary, create a reusable macro (Search time normalization)
+- In Splunk Web: Settings → Advanced search → Search macros → New macro:
+    - Name: lab_auth_sourcetypes
+    - Definition:
+    ```bash
+    (sourcetype=linux:auth OR sourcetype=auth OR sourcetype=syslog OR source="/var/log/auth.log")
+    ```
+    - **Use**: Can now call with backticks: `lab_auth_sourcetypes`
+- Example using macro:
+```bash
+`lab_auth_sourcetypes` "Failed password"
+| rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+| stats count by src_ip
+```
+
+7. Change dashboard panels to be flexible (one-off)
+    - Replace sourcetype=linux:auth with the macro or a flexible clause:
+    ```bash
+    index=$INDEX_UBUNTU (sourcetype=linux_secure OR sourcetype=linux:auth OR sourcetype=auth OR "Failed password")
+    | rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+    | stats count as failed_attempts by src_ip
+    | where failed_attempts > 0
+    ```
+
+8. If you can change forwarder inputs (preferred long-term)
+    - On the UF, ensure /opt/splunkforwarder/etc/system/local/inputs.conf has:
+    ```bash
+    [monitor:///var/log/auth.log]
+    sourcetype = linux:auth
+    index = ubuntu
+    disabled = false
+    ```
+- Restart the forwarder to make future events consistent.
+
+9. Verify fields are extracted for dashboard use
+    - Run a search that produces the fields your panels expect:
+    ```bash
+    `lab_auth_sourcetypes` "Failed password" earliest=-15m
+    | rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+    | rex "(?i)(?:for|user|invalid user)[=:\s]*(?<user>[\w\-\.\@]+)"
+    | stats count as attempts by src_ip, user | sort - attempts
+    ```
+    - If `src_ip` or `user` are empty, tweak the `rex` using the sample `_raw` event saved earlier.
+
+### TC5 - Expected Results
+- You can list the actual `sourcetype`(s) producing host/auth events (via `stats count by sourcetype`).
+- You have saved a sample `_raw` event to `evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt`.
+- A flexible SPL (macro or OR clause) returns the test events and extracts `src_ip` and `user` correctly for the dashboard panel.
+
+### TC5 - Evidence To Collect
+- `evidence/tc5-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
+- `evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
+- `evidence/tc5-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
+- Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/tc5-panel-YYYYMMDDTHHMMSS.png`
+
+### TC6 - Pass/Fail Criteria
+-**PASS** if: you identify the actual sourcetype(s) and you can run a dashboard/search query (macro or flexible SPL) that returns the test events and extracts `src_ip` (and `user`) reliably within the test window.
+- **FAIL** if: no events are returned by flexible searches, sample `_raw` cannot be found for the test timeframe, or field extractions fail repeatedly even after tuning `rex`.
+
+### Troubleshooting
+
+---
+### TC6 — pfSense syslog ingestion (optional)
+
+---
+### TC7 — Dashboard validation
+
+---
+### TC8 — Alert test (saved search)
 
 ---
 
