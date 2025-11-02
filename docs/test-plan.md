@@ -434,6 +434,24 @@ index=$INDEX_HOSTS sourcetype=linux:auth $UBUNTU_IP | table _time host sourcetyp
     - No events appear in Splunk despite host logs containing the test event.
 
 ### Troubleshooting
+- If forward-server not set or disconnected
+```bash
+# on forwarder: set outputs.conf (replace INDEXER_IP and UF_PORT)
+sudo tee /opt/splunkforwarder/etc/system/local/outputs.conf > /dev/null <<'EOF'
+[tcpout]
+defaultGroup = indexers
+
+[tcpout:indexers]
+server = $INDEXER_IP:$UF_PORT
+
+[tcpout-server://$INDEXER_IP:$UF_PORT]
+disabled = false
+EOF
+
+# set ownership & restart
+sudo chown -R splunk:splunk /opt/splunkforwarder/etc/system/local
+sudo /opt/splunkforwarder/bin/splunk restart
+```
 
 ---
 
