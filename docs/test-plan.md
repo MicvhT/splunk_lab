@@ -4,7 +4,7 @@
 Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
 
 - **Author:** Micah Thompson 
-- **Date:** 2025-10-29  
+- **Date:** 2025-11-02  
 - **Version:** 0.1  
 - **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
@@ -69,7 +69,7 @@ sudo nmap -sS -Pn --top-ports 50 $UBUNTU_IP -oN evidence/tc1-nmap-$(date +%Y%m%d
 ```bash
 # on indexer/Ubuntu
 sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc1-tcpdump-$(date +%Y%m%dT%H%M%S).log
-# while it runs, re-run the nc/ping commands on Kali
+# while it runs, re-run the nc/ping commands on Kali (steps 3 & 4)
 ```
 
 ### TC1 - Expected Results
@@ -304,6 +304,8 @@ sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log | egrep -i 'TcpInput|tcp
 - Kali-side evidence of generated traffic: `siem_lab/evidence/tc3-nc-uf-...log, tc3-nmap-...log`
 - Splunk/internal evidence: `siem_lab/evidence/tc3-splunkd-internal-<timestamp>.log`
 
+**Owner:** You ,  **PRIORITY:** High
+
 ### TC3 - Pass/Fail Criteria
 - **PASS** if tcpdump shows packets from `KALI_IP` to `INDEXER_IP` destined for the expected port(s) (TCP 9997 for UF or UDP/TCP 1514 for syslog) AND Splunk shows corresponding activity (events or TCP input messages in `_internal`) within the same time window.
 - **FAIL** if tcpdump shows no packets at all between KALI and INDEXER, or packets are visible but not reaching intended port (e.g., RSTs/no listener), or Splunk listener returns errors in logs.
@@ -419,6 +421,8 @@ index=$INDEX_HOSTS sourcetype=linux:auth $UBUNTU_IP | table _time host sourcetyp
 - `siem_lab/evidence/tc4-nc-YYYYMMDDTHHMMSS.log` (nc reachability test)
 - `siem_lab/evidence/tc4-logger-sent-YYYYMMDDTHHMMSS.log` (if used)
 - `siem_lab/evidence/tc4-indexer-splunkd-YYYYMMDDTHHMMSS.log` (indexer splunkd tail)
+
+**Owner:** You ,  **PRIORITY:** High
 
 
 ### TC4 - Pass/Fail 
@@ -580,14 +584,84 @@ index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
 - `evidence/tc5-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
 - Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/tc5-panel-YYYYMMDDTHHMMSS.png`
 
-### TC6 - Pass/Fail Criteria
+**Owner:** You ,  **PRIORITY:** High
+
+### TC5 - Pass/Fail Criteria
 -**PASS** if: you identify the actual sourcetype(s) and you can run a dashboard/search query (macro or flexible SPL) that returns the test events and extracts `src_ip` (and `user`) reliably within the test window.
 - **FAIL** if: no events are returned by flexible searches, sample `_raw` cannot be found for the test timeframe, or field extractions fail repeatedly even after tuning `rex`.
 
 ### Troubleshooting
+- Verify time picker covers the test time. 
+- Run a very borad search to ensure events exist:
+```bash
+index=$INDEX_HOSTS "$KALI_IP" | head 50
+```
+- Use the saved `_raw` event to craft exact rex patterns (copy/paste pieces from `_raw` into the regex).
+- When in doubt, set the UF to explicitly set sourcetype = `linux_secure` at the forwarder (preferred) so searches don’t need extra complexity.
 
 ---
 ### TC6 — pfSense syslog ingestion (optional)
+
+**Objective:**
+Verify pfSense firewall logs (syslog) are forwarded to Splunk and ingested into `index=pfsense` with fields like `src_ip`, `dst_port`, `action`, and `rule` available for dashboards. 
+
+
+**Preconditions**
+- `ENV` block populated (`INDEXER_IP`, `SYSLOG_PORT`, `INDEX_PFSENSE`).
+- Splunk indexer reachable from pfSense (network validated by TC1/TC3).
+- You have Splunk admin access to create a UDP/TCP input and view indexes.
+- You can access the pfSense GUI (or SSH/shell) to configure remote syslog.
+
+## Design notes / recommendation
+- **Preferred for lab:** Use **TCP syslog** (e.g., 1514 TCP) for reliability. If you must use UDP, it’s okay for tests but packets can be lost.
+- Configure Splunk to listen on the chosen port and index the incoming messages to `INDEX_PFSENSE` with an appropriate `sourcetype` (e.g., `pfsense:syslog`).
+
+**Steps**
+
+### A — Configure Splunk to receive syslog (indexer)
+1.  In Splunk Web: **Settings → Data inputs → UDP** (or **TCP**) → **New**.  
+   - Port: `$SYSLOG_PORT` (e.g., `1514`)  
+   - Source type: `pfsense:syslog` (or `syslog`)  
+   - Host: `IP` or `DNS` (choose `IP` to use incoming IP as host)  
+   - Index: `INDEX_PFSENSE`  
+   - Save.
+
+2. Alternatively, add `inputs.conf` on the indexer (app/local):
+```bash
+# /opt/splunk/etc/apps/TA-local/local/inputs.conf
+[udp://1514]
+sourcetype = pfsense:syslog
+index = pfsense
+connection_host = ip
+disabled = false
+
+# OR for TCP:
+[tcp://1514]
+sourcetype = pfsense:syslog
+index = pfsense
+connection_host = ip
+disabled = false
+```
+- Restart Splunk if you add conf files:
+```bash
+sudo /opt/splunk/bin/splunk restart
+```
+
+### B — Configure pfSense to forward logs
+- (Using pfSense GUI)
+1. Log into pfSense GUI → Status → System Logs → Settings (or check your pfSense version: Remote syslog configuration is under Status > System Logs > Settings).
+2. Add a remote syslog server:
+    - Remote Syslog Servers (or "Remote Syslog Servers" table): add `INDEXER_IP` and port `SYSLOG_PORT` (specify protocol if UI exposes TCP/UDP).
+    - For format, prefer `BSD`/`syslog` default. Set facility/priority defaults as desired.
+- Save and apply.
+
+### C — Send a test syslog message
+- Use Diagnostics → Command Prompt on pfSense and run:
+```bash
+# sends a local syslog message that will be forwarded
+logger -p daemon.info "PFTEST: test syslog from pfSense $(date -Iseconds) SRC=$KALI_IP DST=$UBUNTU_IP DPT=22"
+```
+
 
 ---
 ### TC7 — Dashboard validation
@@ -600,14 +674,14 @@ index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
 ### Environment / Variables
 
 ```bash
-KALI_IP=192.168.60.3
-KALI_HOSTNAME=mikeytkali
-UBUNTU_HOSTNAME=mikeyt-ubuntu
-UBUNTU_IP=192.168.61.10    # forwarder host / Splunk host
-INDEXER_IP=192.168.61.10   # Splunk indexer IP
-INDEX_PFSENSE=pfsense
-INDEX_UBUNTU=ubuntu         # index where host logs land
-UF_PORT=9997               # UF -> Indexer port
-SYSLOG_PORT=1514           # pfSense -> Splunk syslog port
+KALI_IP=<KALI_VM_IP>
+KALI_HOSTNAME=<KALI_VM_HOSTNAME>
+UBUNTU_HOSTNAME=<UBUNTU_VM_HOSTNAME>
+UBUNTU_IP=<UBUNTU_VM_IP>    # forwarder host / Splunk host
+INDEXER_IP=<INDEXER_VM_IP>   # Splunk indexer IP
+INDEX_PFSENSE=<PFSENSE_INDEX>
+INDEX_UBUNTU=<UBUNTU_INDEX>      # index where host logs land
+UF_PORT=<UF_PORT>               # UF -> Indexer port
+SYSLOG_PORT=<SYSLOG_PORT>           # pfSense -> Splunk syslog port
 TIME_WINDOW='Last 15 minutes'
 ```

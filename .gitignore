@@ -6,6 +6,11 @@ Thumbs.db
 *.log
 *.pid
 
+# env files with real secrets/IPs
+.env
+.env.*
+!.env.example
+
 # secrets & keys
 *.key
 *.pem
