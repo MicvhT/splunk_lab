@@ -662,6 +662,32 @@ sudo /opt/splunk/bin/splunk restart
 logger -p daemon.info "PFTEST: test syslog from pfSense $(date -Iseconds) SRC=$KALI_IP DST=$UBUNTU_IP DPT=22"
 ```
 
+### D — Confirm packets arrive at the indexer (OS-level)
+- Run this one indexer while test messgage is sent:
+```bash
+sudo tcpdump -n -i any "host $PFSENSE_IP and udp port $SYSLOG_PORT" -c 5 -vv
+# or for TCP:
+sudo tcpdump -n -i any "host $PFSENSE_IP and port $SYSLOG_PORT" -c 5 -vv
+```
+- Or filter by destination port:
+```bash
+sudo tcpdump -n -i any "port $SYSLOG_PORT" -c 10 -vv
+```
+
+### E — Confirm Splunk ingested the event
+- In Splunk Search (time range = Last 15 minutes):
+```bash
+index=$INDEX_PFSENSE "PFTEST" OR "pfsense TEST" | table _time host sourcetype index _raw | sort -_time | head 50
+```
+- If nothing  appears, broaden the search:
+```bash
+index=* "pfsense TEST" OR "PFTEST" | stats count by index,sourcetype,host | sort - count
+```
+
+### TC6 - Expected Results
+`tcpdump` shows the test packet(s) arriving at `INDEXER_IP:$SYSLOG_PORT`.
+- Splunk quickly (within 60 seconds) indexes the test event in `index=INDEX_PFSENSE` with the chosen `sourcetype` (e.g., `pfsense:syslog`).
+- `_raw` contains the test string and you can extract `SRC`, `DST`, `DPT` with `rex` or props/transforms.
 
 ---
 ### TC7 — Dashboard validation
