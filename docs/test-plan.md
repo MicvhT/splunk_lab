@@ -4,7 +4,7 @@
 Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
 
 - **Author:** Micah Thompson 
-- **Date:** 2025-11-02  
+- **Date:** 2025-11-06  
 - **Version:** 0.1  
 - **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
@@ -414,7 +414,7 @@ host="$UBUNTU_HOSTNAME" OR host="$UBUNTU_IP" | stats count by index, sourcetype 
 index=$INDEX_HOSTS sourcetype=linux:auth $UBUNTU_IP | table _time host sourcetype _raw | sort -_time | head 20
 ```
 
-### TC4 - Evidence to Collect
+### TC4 - Evidence To Collect
 - `siem_lab/evidence/tc4-forward-server-YYYYMMDDTHHMMSS.log` (output of splunk list forward-server)
 - `siem_lab/evidence/tc4-btool-inputs-YYYYMMDDTHHMMSS.log` (btool inputs)
 - `siem_lab/evidence/tc4-uf-log-YYYYMMDDTHHMMSS.log` (tail of UF splunkd.log)
@@ -688,6 +688,21 @@ index=* "pfsense TEST" OR "PFTEST" | stats count by index,sourcetype,host | sort
 `tcpdump` shows the test packet(s) arriving at `INDEXER_IP:$SYSLOG_PORT`.
 - Splunk quickly (within 60 seconds) indexes the test event in `index=INDEX_PFSENSE` with the chosen `sourcetype` (e.g., `pfsense:syslog`).
 - `_raw` contains the test string and you can extract `SRC`, `DST`, `DPT` with `rex` or props/transforms.
+
+### TC6 - Evidence To Collect
+- `siem_lab/evidence/tc6-pfsense-config-YYYYMMDDTHHMMSS.png` (screenshot of pfSense Remote Syslog settings)
+- `siem_lab/evidence/tc6-syslog-send-YYYYMMDDTHHMMSS.log` (output of test send command)
+- `siem_lab/evidence/tc6-tcpdump-YYYYMMDDTHHMMSS.log` (tcpdump readable extract)
+- `siem_lab/evidence/tc6-splunk-event-YYYYMMDDTHHMMSS.txt` (sample `_raw` event saved from Splunk)
+- `siem_lab/evidence/tc6-splunk-inputs-YYYYMMDDTHHMMSS.log`(screenshot or `inputs.conf` showing udp/tcp stanza)
+
+**Owner:** You ,  **PRIORITY:** Medium
+
+### TC6 - Pass/Fail Criteria
+- **PASS** if: `tcpdump` shows syslog packets arriving at `INDEXER_IP:$SYSLOG_PORT` AND Splunk returns at least one event in `index=$INDEX_PFSENSE` containing the test text within 60s.
+- **FAIL** if: OS-level capture shows no packets (network/pfSense problem), or packets arrive but Splunk is not listening / not indexing (no event in `index=$INDEX_PFSENSE`).
+
+### Troubleshooting
 
 ---
 ### TC7 — Dashboard validation
