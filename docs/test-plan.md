@@ -4,7 +4,7 @@
 Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
 
 - **Author:** Micah Thompson 
-- **Date:** 2025-11-06  
+- **Date:** 2025-11-07  
 - **Version:** 0.1  
 - **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
@@ -74,7 +74,7 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 
 ### TC1 - Expected Results
 - `ip -br addr` on Kali shows `KALI_IP` and on Ubuntu shows `UBUNTU_IP`
-- `nc -vnz` produces `succeeded` or `Connection refused` for reachable host (not `No route to host` or `Operation timed out`).
+- `nc -vnz` produces `succeeded` or `Connection refused` or `open` referring to a specific port, all for a reachable host (not `No route to host` or `Operation timed out`).
 - `ping` receives replies if ICMP is allowed; if ICMP is blocked, `nc`/`tcpdump` to prove connectivity.
 - if tcpdump is run on indexer, you should see packets from `KALI_IP` to `UBUNTU_IP`
 
@@ -89,7 +89,7 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 **Owner:** You ,  **PRIORITY:** High
 
 ### TC1 - Pass/Fail Criteria
-- **PASS** if `nc` shows `succeeded` or `Connection refused` (proves reachability) OR tcpdump shows packets from `KALI_IP` to `UBUNTU_IP`.
+- **PASS** if `nc` shows `succeeded` or `Connection refused` or `open` referring to a specific port (proves reachability) OR tcpdump shows packets from `KALI_IP` to `UBUNTU_IP`.
 - **FAIL** if `nc`/tcpdump shows no packets and `No route to host`/`Operation timed out` persists. 
 
 ### Networking/Troubleshooting
@@ -705,10 +705,10 @@ index=* "pfsense TEST" OR "PFTEST" | stats count by index,sourcetype,host | sort
 ### Troubleshooting
 
 ---
-### TC7 — Dashboard validation
+### TC7 — Dashboard Validation
 
 ---
-### TC8 — Alert test (saved search)
+### TC8 — Alert Test (Saved Search)
 
 ---
 
