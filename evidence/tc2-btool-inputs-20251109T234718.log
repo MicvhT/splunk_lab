@@ -1,0 +1,5 @@
+/opt/splunkforwarder/etc/system/local/inputs.conf                          [monitor:///var/log/auth.log]
+/opt/splunkforwarder/etc/system/default/inputs.conf                        _rcvbuf = 1572864
+/opt/splunkforwarder/etc/system/local/inputs.conf                          disabled = false
+/opt/splunkforwarder/etc/system/default/inputs.conf                        host = $decideOnStartup
+/opt/splunkforwarder/etc/system/local/inputs.conf                          index = ubuntu
