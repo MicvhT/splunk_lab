@@ -1,0 +1,79 @@
+2025-11-09T00:05:01.073718-06:00 mikeyt-ubuntu CRON[19151]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T00:05:01.094381-06:00 mikeyt-ubuntu CRON[19151]: pam_unix(cron:session): session closed for user root
+2025-11-09T00:15:01.149070-06:00 mikeyt-ubuntu CRON[19862]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T00:15:01.176768-06:00 mikeyt-ubuntu CRON[19862]: pam_unix(cron:session): session closed for user root
+2025-11-09T00:17:01.199072-06:00 mikeyt-ubuntu CRON[20161]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T00:17:01.205287-06:00 mikeyt-ubuntu CRON[20161]: pam_unix(cron:session): session closed for user root
+2025-11-09T00:35:02.282188-06:00 mikeyt-ubuntu CRON[20976]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T00:35:02.301797-06:00 mikeyt-ubuntu CRON[20976]: pam_unix(cron:session): session closed for user root
+2025-11-09T00:36:08.148738-06:00 mikeyt-ubuntu pkexec: pam_unix(polkit-1:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T00:36:08.169550-06:00 mikeyt-ubuntu pkexec[21076]: mikeyt: Executing command [USER=root] [TTY=unknown] [CWD=/home/mikeyt] [COMMAND=/usr/lib/update-notifier/package-system-locked]
+2025-11-09T10:40:27.262376-06:00 mikeyt-ubuntu pkexec: pam_unix(polkit-1:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T10:40:27.275060-06:00 mikeyt-ubuntu pkexec[21804]: mikeyt: Executing command [USER=root] [TTY=unknown] [CWD=/home/mikeyt] [COMMAND=/usr/lib/update-notifier/package-system-locked]
+2025-11-09T10:40:28.826266-06:00 mikeyt-ubuntu gdm-password]: gkr-pam: unlocked login keyring
+2025-11-09T10:43:29.034487-06:00 mikeyt-ubuntu pkexec: pam_unix(polkit-1:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T10:43:29.042255-06:00 mikeyt-ubuntu pkexec[28513]: mikeyt: Executing command [USER=root] [TTY=unknown] [CWD=/home/mikeyt] [COMMAND=/usr/lib/update-notifier/package-system-locked]
+2025-11-09T10:45:01.074764-06:00 mikeyt-ubuntu CRON[28644]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T10:45:01.083977-06:00 mikeyt-ubuntu CRON[28644]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:15:27.909338-06:00 mikeyt-ubuntu CRON[29791]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T23:15:27.909990-06:00 mikeyt-ubuntu CRON[29791]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:15:31.445573-06:00 mikeyt-ubuntu gdm-password]: gkr-pam: unlocked login keyring
+2025-11-09T23:17:01.357330-06:00 mikeyt-ubuntu CRON[30348]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T23:17:01.367308-06:00 mikeyt-ubuntu CRON[30348]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:19:43.553442-06:00 mikeyt-ubuntu sudo:   mikeyt : TTY=pts/0 ; PWD=/home/mikeyt/Documents/splunk_lab ; USER=root ; COMMAND=/usr/bin/systemctl status sshd --no-pager
+2025-11-09T23:19:43.556355-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T23:19:43.584193-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session closed for user root
+2025-11-09T23:24:40.755884-06:00 mikeyt-ubuntu sshd[31068]: Invalid user invaliduser from 192.168.60.3 port 45206
+2025-11-09T23:24:45.873358-06:00 mikeyt-ubuntu sshd[31068]: pam_unix(sshd:auth): check pass; user unknown
+2025-11-09T23:24:45.873494-06:00 mikeyt-ubuntu sshd[31068]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=192.168.60.3 
+2025-11-09T23:24:47.669363-06:00 mikeyt-ubuntu sshd[31068]: Failed password for invalid user invaliduser from 192.168.60.3 port 45206 ssh2
+2025-11-09T23:25:01.391263-06:00 mikeyt-ubuntu CRON[31101]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T23:25:01.405033-06:00 mikeyt-ubuntu CRON[31101]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:25:13.115903-06:00 mikeyt-ubuntu sshd[31068]: Failed password for invalid user invaliduser from 192.168.60.3 port 45206 ssh2
+2025-11-09T23:25:14.581783-06:00 mikeyt-ubuntu sshd[31068]: Failed password for invalid user invaliduser from 192.168.60.3 port 45206 ssh2
+2025-11-09T23:25:14.593901-06:00 mikeyt-ubuntu sshd[31068]: Connection closed by invalid user invaliduser 192.168.60.3 port 45206 [preauth]
+2025-11-09T23:25:15.715000-06:00 mikeyt-ubuntu sshd[31120]: Invalid user invaliduser from 192.168.60.3 port 41904
+2025-11-09T23:25:16.264829-06:00 mikeyt-ubuntu sshd[31120]: Failed none for invalid user invaliduser from 192.168.60.3 port 41904 ssh2
+2025-11-09T23:25:18.218042-06:00 mikeyt-ubuntu sshd[31120]: Failed password for invalid user invaliduser from 192.168.60.3 port 41904 ssh2
+2025-11-09T23:25:20.149282-06:00 mikeyt-ubuntu sshd[31120]: Failed password for invalid user invaliduser from 192.168.60.3 port 41904 ssh2
+2025-11-09T23:25:20.315382-06:00 mikeyt-ubuntu sshd[31120]: Connection closed by invalid user invaliduser 192.168.60.3 port 41904 [preauth]
+2025-11-09T23:25:21.995990-06:00 mikeyt-ubuntu sshd[31131]: Invalid user invaliduser from 192.168.60.3 port 41906
+2025-11-09T23:25:22.540898-06:00 mikeyt-ubuntu sshd[31131]: Failed none for invalid user invaliduser from 192.168.60.3 port 41906 ssh2
+2025-11-09T23:25:23.520108-06:00 mikeyt-ubuntu sshd[31131]: Failed password for invalid user invaliduser from 192.168.60.3 port 41906 ssh2
+2025-11-09T23:25:24.090304-06:00 mikeyt-ubuntu sshd[31131]: Failed password for invalid user invaliduser from 192.168.60.3 port 41906 ssh2
+2025-11-09T23:25:24.103785-06:00 mikeyt-ubuntu sshd[31131]: Connection closed by invalid user invaliduser 192.168.60.3 port 41906 [preauth]
+2025-11-09T23:25:25.209854-06:00 mikeyt-ubuntu sshd[31139]: Invalid user invaliduser from 192.168.60.3 port 38704
+2025-11-09T23:25:25.685218-06:00 mikeyt-ubuntu sshd[31139]: Failed none for invalid user invaliduser from 192.168.60.3 port 38704 ssh2
+2025-11-09T23:25:30.554032-06:00 mikeyt-ubuntu sshd[31139]: Failed password for invalid user invaliduser from 192.168.60.3 port 38704 ssh2
+2025-11-09T23:25:35.619178-06:00 mikeyt-ubuntu sshd[31139]: Failed password for invalid user invaliduser from 192.168.60.3 port 38704 ssh2
+2025-11-09T23:25:35.715988-06:00 mikeyt-ubuntu sshd[31139]: Connection closed by invalid user invaliduser 192.168.60.3 port 38704 [preauth]
+2025-11-09T23:25:36.859340-06:00 mikeyt-ubuntu sshd[31162]: Invalid user invaliduser from 192.168.60.3 port 56590
+2025-11-09T23:25:37.536964-06:00 mikeyt-ubuntu sshd[31162]: Failed none for invalid user invaliduser from 192.168.60.3 port 56590 ssh2
+2025-11-09T23:25:39.216123-06:00 mikeyt-ubuntu sshd[31162]: Failed password for invalid user invaliduser from 192.168.60.3 port 56590 ssh2
+2025-11-09T23:25:40.800685-06:00 mikeyt-ubuntu sshd[31162]: Failed password for invalid user invaliduser from 192.168.60.3 port 56590 ssh2
+2025-11-09T23:25:40.810166-06:00 mikeyt-ubuntu sshd[31162]: Connection closed by invalid user invaliduser 192.168.60.3 port 56590 [preauth]
+2025-11-09T23:25:41.945017-06:00 mikeyt-ubuntu sshd[31177]: Invalid user invaliduser from 192.168.60.3 port 56598
+2025-11-09T23:25:42.630526-06:00 mikeyt-ubuntu sshd[31177]: Failed none for invalid user invaliduser from 192.168.60.3 port 56598 ssh2
+2025-11-09T23:25:43.477876-06:00 mikeyt-ubuntu sshd[31177]: Failed password for invalid user invaliduser from 192.168.60.3 port 56598 ssh2
+2025-11-09T23:25:44.166730-06:00 mikeyt-ubuntu sshd[31177]: Failed password for invalid user invaliduser from 192.168.60.3 port 56598 ssh2
+2025-11-09T23:25:44.177508-06:00 mikeyt-ubuntu sshd[31177]: Connection closed by invalid user invaliduser 192.168.60.3 port 56598 [preauth]
+2025-11-09T23:25:45.297871-06:00 mikeyt-ubuntu sshd[31190]: Invalid user invaliduser from 192.168.60.3 port 47508
+2025-11-09T23:25:45.563433-06:00 mikeyt-ubuntu sshd[31190]: Failed none for invalid user invaliduser from 192.168.60.3 port 47508 ssh2
+2025-11-09T23:25:46.498166-06:00 mikeyt-ubuntu sshd[31190]: Failed password for invalid user invaliduser from 192.168.60.3 port 47508 ssh2
+2025-11-09T23:25:48.479617-06:00 mikeyt-ubuntu sshd[31190]: Connection closed by invalid user invaliduser 192.168.60.3 port 47508 [preauth]
+2025-11-09T23:26:58.177382-06:00 mikeyt-ubuntu sudo:   mikeyt : TTY=pts/0 ; PWD=/home/mikeyt/Documents/splunk_lab ; USER=root ; COMMAND=/usr/bin/grep 192.168.60.3 /var/log/auth.log
+2025-11-09T23:26:58.207137-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T23:26:58.207551-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session closed for user root
+2025-11-09T23:28:27.580735-06:00 mikeyt-ubuntu sudo:   mikeyt : TTY=pts/0 ; PWD=/home/mikeyt/Documents ; USER=root ; COMMAND=/usr/bin/grep 192.168.60.3 /var/log/auth.log
+2025-11-09T23:28:27.581776-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T23:28:27.586119-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session closed for user root
+2025-11-09T23:30:01.432167-06:00 mikeyt-ubuntu CRON[31600]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T23:30:01.447831-06:00 mikeyt-ubuntu CRON[31600]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:35:01.460323-06:00 mikeyt-ubuntu CRON[32039]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+2025-11-09T23:35:01.467320-06:00 mikeyt-ubuntu CRON[32039]: pam_unix(cron:session): session closed for user root
+2025-11-09T23:41:16.248178-06:00 mikeyt-ubuntu gdm-password]: gkr-pam: unlocked login keyring
+2025-11-09T23:42:51.894998-06:00 mikeyt-ubuntu sudo:   mikeyt : TTY=pts/0 ; PWD=/home/mikeyt ; USER=root ; COMMAND=/usr/bin/grep 192.168.60.3 /var/log/auth.log
+2025-11-09T23:42:51.896680-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by mikeyt(uid=1000)
+2025-11-09T23:42:51.904264-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session closed for user root
+2025-11-09T23:43:57.081725-06:00 mikeyt-ubuntu sudo:   mikeyt : TTY=pts/0 ; PWD=/home/mikeyt ; USER=root ; COMMAND=/usr/bin/tail -n 100 /var/log/auth.log
+2025-11-09T23:43:57.084310-06:00 mikeyt-ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by mikeyt(uid=1000)
