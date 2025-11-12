@@ -5,8 +5,8 @@ Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalizatio
 
 - **Author:** Micah Thompson 
 - **Date:** 2025-11-11
-- **Version:** 0.1  
-- **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
+- **Version:** 0.5  
+- **Related docs:** `architecture.md`, `../evidence/`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
 ---
 
@@ -101,7 +101,7 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 
 ---
 
-### TC2 — SSH auth failure generation (host logs → Splunk)
+### TC2 — SSH auth failure generation (Host Logs → Splunk)
 
 **Objective:**  
 Generate failed SSH login attempts from Kali to the Ubuntu host and verify the failures are: 
@@ -240,6 +240,11 @@ Confirm events from the Ubuntu forwarder (host) are indexed, discover the *actua
 1. Set time picker to the test window
 - In Splunk Web Search, set the time range to `Last 15 minutes` (or the period you ran tests).
 
+0R run another independent set of SSH attempts:
+```bash
+for i in {1..8}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done
+```
+
 2. Find which sourcetypes exist for the host or IP (fast)
 - By **host**:
 ```bash
@@ -263,7 +268,7 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user" OR "authentication fail
 ```
 - Click a representative event → View → Raw. Copy the `_raw` text and save to a file locally:
 ```bash
-evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt
+tc3-sample-raw-YYYYMMDDTHHMMSS.txt
 ```
 - Also note the `sourcetype` value shown in the event's metadata.
 
@@ -294,7 +299,7 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
 ```
 
 7. Change dashboard panels to be flexible (one-off)
-    - Replace sourcetype=linux:auth with the macro or a flexible clause:
+    - Replace sourcetype=linux_secure with the macro or a flexible clause:
     ```bash
     index=$INDEX_UBUNTU (sourcetype=linux_secure OR sourcetype=linux:auth OR sourcetype=auth OR "Failed password")
     | rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
@@ -306,7 +311,7 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
     - On the UF, ensure /opt/splunkforwarder/etc/system/local/inputs.conf has:
     ```bash
     [monitor:///var/log/auth.log]
-    sourcetype = linux:auth
+    sourcetype = linux_secure
     index = ubuntu
     disabled = false
     ```
@@ -324,19 +329,19 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
 
 ### TC3 - Expected Results
 - You can list the actual `sourcetype`(s) producing host/auth events (via `stats count by sourcetype`).
-- You have saved a sample `_raw` event to `evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt`.
+- You have saved a sample `_raw` event to `evidence/tc3-sample-raw-YYYYMMDDTHHMMSS.txt`.
 - A flexible SPL (macro or OR clause) returns the test events and extracts `src_ip` and `user` correctly for the dashboard panel.
 
 ### TC3 - Evidence To Collect
-- `evidence/TC3-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
-- `evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
-- `evidence/TC3-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
-- Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/TC3-panel-YYYYMMDDTHHMMSS.png`
+- `evidence/tc3-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
+- `evidence/tc3-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
+- `evidence/tc3-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
+- Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/tc3-panel-YYYYMMDDTHHMMSS.png`
 
 **Owner:** You ,  **PRIORITY:** High
 
 ### TC3 - Pass/Fail Criteria
--**PASS** if: you identify the actual sourcetype(s) and you can run a dashboard/search query (macro or flexible SPL) that returns the test events and extracts `src_ip` (and `user`) reliably within the test window.
+- **PASS** if: you identify the actual sourcetype(s) and you can run a dashboard/search query (macro or flexible SPL) that returns the test events and extracts `src_ip` (and `user`) reliably within the test window.
 - **FAIL** if: no events are returned by flexible searches, sample `_raw` cannot be found for the test timeframe, or field extractions fail repeatedly even after tuning `rex`.
 
 ### Troubleshooting
@@ -349,7 +354,7 @@ index=$INDEX_UBUNTU "$KALI_IP" | head 50
 - When in doubt, set the UF to explicitly set sourcetype = `linux_secure` at the forwarder (preferred) so searches don’t need extra complexity.
 
 ---
-### TC6 — pfSense syslog ingestion (optional)
+### TC4 — pfSense Syslog Ingestion (optional)
 
 **Objective:**
 Verify pfSense firewall logs (syslog) are forwarded to Splunk and ingested into `index=pfsense` with fields like `src_ip`, `dst_port`, `action`, and `rule` available for dashboards. 
@@ -433,31 +438,31 @@ index=$INDEX_PFSENSE "PFTEST" OR "pfsense TEST" | table _time host sourcetype in
 index=* "pfsense TEST" OR "PFTEST" | stats count by index,sourcetype,host | sort - count
 ```
 
-### TC6 - Expected Results
+### TC4 - Expected Results
 `tcpdump` shows the test packet(s) arriving at `INDEXER_IP:$SYSLOG_PORT`.
 - Splunk quickly (within 60 seconds) indexes the test event in `index=INDEX_PFSENSE` with the chosen `sourcetype` (e.g., `pfsense:syslog`).
 - `_raw` contains the test string and you can extract `SRC`, `DST`, `DPT` with `rex` or props/transforms.
 
-### TC6 - Evidence To Collect
-- `siem_lab/evidence/tc6-pfsense-config-YYYYMMDDTHHMMSS.png` (screenshot of pfSense Remote Syslog settings)
-- `siem_lab/evidence/tc6-syslog-send-YYYYMMDDTHHMMSS.log` (output of test send command)
-- `siem_lab/evidence/tc6-tcpdump-YYYYMMDDTHHMMSS.log` (tcpdump readable extract)
-- `siem_lab/evidence/tc6-splunk-event-YYYYMMDDTHHMMSS.txt` (sample `_raw` event saved from Splunk)
-- `siem_lab/evidence/tc6-splunk-inputs-YYYYMMDDTHHMMSS.log`(screenshot or `inputs.conf` showing udp/tcp stanza)
+### TC4 - Evidence To Collect
+- `siem_lab/evidence/tc4-pfsense-config-YYYYMMDDTHHMMSS.png` (screenshot of pfSense Remote Syslog settings)
+- `siem_lab/evidence/tc4-syslog-send-YYYYMMDDTHHMMSS.log` (output of test send command)
+- `siem_lab/evidence/tc4-tcpdump-YYYYMMDDTHHMMSS.log` (tcpdump readable extract)
+- `siem_lab/evidence/tc4-splunk-event-YYYYMMDDTHHMMSS.txt` (sample `_raw` event saved from Splunk)
+- `siem_lab/evidence/tc4-splunk-inputs-YYYYMMDDTHHMMSS.log`(screenshot or `inputs.conf` showing udp/tcp stanza)
 
 **Owner:** You ,  **PRIORITY:** Medium
 
-### TC6 - Pass/Fail Criteria
+### TC4 - Pass/Fail Criteria
 - **PASS** if: `tcpdump` shows syslog packets arriving at `INDEXER_IP:$SYSLOG_PORT` AND Splunk returns at least one event in `index=$INDEX_PFSENSE` containing the test text within 60s.
 - **FAIL** if: OS-level capture shows no packets (network/pfSense problem), or packets arrive but Splunk is not listening / not indexing (no event in `index=$INDEX_PFSENSE`).
 
 ### Troubleshooting
 
 ---
-### TC7 — Dashboard Validation
+### TC5 — Dashboard Validation
 
 ---
-### TC8 — Alert Test (Saved Search)
+### TC6 — Alert Test (Saved Search)
 
 ---
 
