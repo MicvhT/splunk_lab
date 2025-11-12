@@ -15,6 +15,7 @@ Thumbs.db
 *.key
 *.pem
 *.crt
+*.backup
 .env
 
 # VMs and images

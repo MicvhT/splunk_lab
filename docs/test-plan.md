@@ -4,7 +4,7 @@
 Repeatable, versioned tests to verify end-to-end ingestion, parsing/normalization, dashboards, and alerts for the lab (pfSense → Ubuntu Splunk UF → Splunk indexer).
 
 - **Author:** Micah Thompson 
-- **Date:** 2025-11-07  
+- **Date:** 2025-11-11
 - **Version:** 0.1  
 - **Related docs:** `architecture.md`, `configs/forwarder/inputs.conf.example`, `configs/forwarder/outputs.conf.example`, `dashboards/siem_lab_overview.xml`
 
@@ -224,259 +224,7 @@ sudo /opt/splunkforwarder/bin/splunk restart
 
 ---
 
-### TC3 — Packet Capture On Indexer (decisive network proof)
-
-**Objective:**  
-Confirm packets from the attacker (Kali) reach the indexer/Ubuntu (Splunk) and verify whether they are sent to the expected listener ports (UF TCP 9997, pfSense syslog 1514), by capturing packets on the indexer and analyzing them.
-
-**Preconditions**
-- `ENV` block populated (`KALI_IP`, `INDEXER_IP`, `UBUNTU_IP`, `UF_PORT`, `SYSLOG_PORT`).
-- You have sudo on the indexer/Ubuntu machine to run tcpdump.
-- Enough disk space to store a small pcap file in `siem_lab/evidence/`.
-
-**High-level approach**
-1. Start a short tcpdump on the indexer capturing traffic between Kali and the indexer.
-2. On Kali, run the test traffic (SSH attempts, nc, nmap, syslog test).
-3. Stop tcpdump and analyze the pcap for connections to `INDEXER_IP:$UF_PORT` and `INDEXER_IP:$SYSLOG_PORT`.
-4. Save human-readable extracts and the raw pcap as evidence.
-
----
-
-**Steps**
-1. Start decisive capture on the indexer (Ubuntu where Splunk runs)
-```bash
-# create evidence dir if not exists
-mkdir -p ~/siem_lab/evidence
-
-# capture only traffic between KALI_IP and INDEXER_IP, write to pcap (raw)
-sudo tcpdump -n -i any host $KALI_IP and host $INDEXER_IP -w ~/siem_lab/evidence/tc3-traffic-$KALI_IP-to-$INDEXER_IP-$(date +%Y%m%dT%H%M%S).pcap -c 200
-# -n: numeric IPs (no DNS), -i any: all interfaces, -w: write pcap, -c: stop after 200 packets
-```
-- Keep the terminal running; tcpdump will exit after `-c` packets or Ctrl+C.
-- If you expect a lot of traffic, increase -c or omit and stop with Ctrl+C.
-
-2. While tcpdump is running: generate test traffic from Kali
-Run these from Kali (copy output to evidence on Kali as well):
-```bash
-# 1) SSH failed attempts (auth failures used in TC2)
-for i in {1..8}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done
-
-# 2) Netcat checks to UF and web ports
-nc -vnz $INDEXER_IP $UF_PORT 2>&1 | tee ~/siem_lab/evidence/tc3-nc-uf-$(date +%Y%m%dT%H%M%S).log
-nc -vnz $INDEXER_IP 22 80 443 2>&1 | tee ~/siem_lab/evidence/tc3-nc-ports-$(date +%Y%m%dT%H%M%S).log
-
-# 3) If you want syslog test (pfSense->Splunk style), send a UDP syslog
-echo "<134>1 $(date -Iseconds) TEST pfSense->Splunk: test from $KALI_IP" | nc -u $INDEXER_IP $SYSLOG_PORT
-```
-
-3. Stop capture (if you used Ctrl+C or waited for -c to finish)
-
-4. Produce readable extracts (on indexer)
-```bash
-PCAP=~/siem_lab/evidence/tc3-traffic-$KALI_IP-to-$INDEXER_IP-*.pcap
-
-# A) quick summary with tcpdump (text)
-sudo tcpdump -n -r $PCAP -vv | tee ~/siem_lab/evidence/tc3-tcpdump-readable-$(date +%Y%m%dT%H%M%S).log
-
-# B) filter only traffic to UF_PORT or SYSLOG_PORT (text)
-sudo tcpdump -n -r $PCAP -vv "(tcp and dst port $UF_PORT) or (udp and dst port $SYSLOG_PORT) or (tcp and src port $UF_PORT) or (udp and src port $SYSLOG_PORT)" | tee ~/siem_lab/evidence/tc3-uf-syslog-only-$(date +%Y%m%dT%H%M%S).log
-
-# C) optionally convert pcap to json/text via tshark (if available)
-sudo tshark -r $PCAP -T pdml > ~/siem_lab/evidence/tc3-pdml-$(date +%Y%m%dT%H%M%S).xml 2>/dev/null || true
-```
-
-5. Check Splunk internal for incoming connections at the same time. In Splunk Web (Search) or CLI:
-```bash
-# in Splunk Search (time matching capture window)
-index=_internal (TcpInput OR tcpin OR "Incoming connection" OR tcpout) | tail 50
-```
-Or on indexer shell:
-```bash
-# show listening sockets
-sudo ss -ltnp | egrep "$UF_PORT|$SYSLOG_PORT|8000|8089" || true
-
-# tail Splunk logs for tcp input messages
-sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log | egrep -i 'TcpInput|tcpin|incoming connection|listening|reject|error' -n | tee ~/siem_lab/evidence/tc3-splunkd-internal-$(date +%Y%m%dT%H%M%S).log
-```
-
-### TC3 - Evidence To Collect
-- Raw pcap: siem_lab/evidence/`tc3-traffic-<kali>-to-<indexer>-YYYYMMDDTHHMMSS.pcap`
-- Human-readable extracts: `siem_lab/evidence/tc3-tcpdump-readable-<timestamp>.log` and `tc3-uf-syslog-only-<timestamp>.log`
-- Kali-side evidence of generated traffic: `siem_lab/evidence/tc3-nc-uf-...log, tc3-nmap-...log`
-- Splunk/internal evidence: `siem_lab/evidence/tc3-splunkd-internal-<timestamp>.log`
-
-**Owner:** You ,  **PRIORITY:** High
-
-### TC3 - Pass/Fail Criteria
-- **PASS** if tcpdump shows packets from `KALI_IP` to `INDEXER_IP` destined for the expected port(s) (TCP 9997 for UF or UDP/TCP 1514 for syslog) AND Splunk shows corresponding activity (events or TCP input messages in `_internal`) within the same time window.
-- **FAIL** if tcpdump shows no packets at all between KALI and INDEXER, or packets are visible but not reaching intended port (e.g., RSTs/no listener), or Splunk listener returns errors in logs.
-
-### Troubleshooting
-1. Confirm `KALI_IP` is correct on the Kali VM: `ip -br addr` and use the same IP in capture and tests.
-2. On indexer, run `sudo ss -ltnp` to ensure Splunk or UF is listening on `UF_PORT`.
-3. Confirm capture interface — `sudo tcpdump -D` lists interfaces; use the correct one or `-i any`.
-4. If capture shows packets arriving but Splunk not receiving, check `sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log` for `TcpInput` / connection messages.
-5. If capture shows no packets, check VirtualBox network settings and pfSense firewall rules; run `tcpdump` on the Kali host too to verify it sent them.
-6. If UDP syslog packets arrive at the indexer/host’s network stack on the port you configured but Splunk not parsing, ensure Splunk has a UDP input configured for that port (Settings → Data inputs → UDP).
-
----
-
-### TC4 — Universal Forwarder (UF) connectivity & inputs verification
-
-**Objective:**  
-Verify the Splunk Universal Forwarder on the Ubuntu host is correctly configured to monitor `/var/log/auth.log` (and other host files), is connected to the indexer (`INDEXER_IP:UF_PORT`), and is successfully forwarding events.
-
-**Preconditions**
-- `ENV` block populated (`UBUNTU_IP`, `INDEXER_IP`, `UF_PORT`, `INDEX_UBUNTU`).
-- UF installed under `/opt/splunkforwarder/` and you have `sudo` on the forwarder.
-- Indexer reachable from forwarder (see TC1/TC3).
-
----
-
-**Steps (run on the forwarder first)**
-1. Check UF service / binary availability
-```bash
-# check splunk UF binary exists & show status
-sudo /opt/splunkforwarder/bin/splunk status 2>/dev/null || echo "splunk forwarder binary not found"
-# if installed as a systemd service (some installs), also:
-sudo systemctl status splunkd --no-pager || true
-```
-- Expected: splunkd shown as running, or /opt/splunkforwarder/bin/splunk responds (prints status).
-
-2. Confirm/verify forward-server target(s):
-```bash 
-sudo /opt/splunkforwarder/bin/splunk list forward-server 2>&1 | tee ~/siem_lab/evidence/tc4-forward-server-$(date +%Y%m%dT%H%M%S).log
-```
-- Expected: line like:
-```bash
-$INDEXER_IP:$UF_PORT (Active)
-```
-- If it shows `Disconnected` or nothing, UF is not connected.
-
-3. Show effected monitored inputs (use btool)
-```bash
-sudo /opt/splunkforwarder/bin/splunk btool inputs list --debug | egrep -A6 '/var/log/auth.log|monitor:///var/log/auth.log' | tee ~/siem_lab/evidence/tc4-btool-inputs-$(date +%Y%m%dT%H%M%S).log
-```
-- Expected: a stanza similar to:
-```bash
-[monitor:///var/log/auth.log]
-index = ubuntu
-sourcetype = linux_secure
-disabled = false
-```
-- If `sourcetype` or `index` are missing, the forwarder will send raw source without the expected metadata.
-
-4. Check forwarder logs for connection / send errors:
-```bash
-sudo tail -n 300 /opt/splunkforwarder/var/log/splunk/splunkd.log | egrep -i 'connect|retry|tcpout|error|tcpout-server|forwarder' -n | tee ~/siem_lab/evidence/tc4-uf-log-$(date +%Y%m%dT%H%M%S).log
-```
-- What to look for: repeated `Retry` messages, `tcpout` errors, or `Unable to connect to` indicate network/auth issues. Successful connect lines mention `Established connection to` or `TcpOutputProc` messages.
-
-5. Test TCP reachability from UF to indexer (quick network test)
-```bash
-# use nc to test TCP to the indexer port (9997)
-nc -vz $INDEXER_IP $UF_PORT 2>&1 | tee ~/siem_lab/evidence/tc4-nc-$(date +%Y%m%dT%H%M%S).log
-```
-
-6. **(OPTIONAL)** Force-forward a small test event
-- Use `logger` on the forwarder to generate a local syslog event that should be monitored by the UF (only if `/var/log/syslog` or `/var/log/auth.log` is being watched):
-```bash
-logger -t SIEM_TEST "SIEM_TEST_EVENT from $HOSTNAME at $(date -Iseconds)" && echo "logger sent" | tee ~/siem_lab/evidence/tc4-logger-sent-$(date +%Y%m%dT%H%M%S).log
-# saves to file
-# then wait ~10-30s and check UF logs and Splunk Search
-```
-
-7. Cross-checks (run on the indexer / Splunk host)
-```bash
-# on indexer
-sudo ss -ltnp | egrep "$UF_PORT|8000|8089" || true
-# or
-sudo netstat -tulpen 2>/dev/null | egrep "$UF_PORT|splunk" || true
-```
-- Expected: splunkd listening on TCP `9997` (or whatever UF_PORT you configured). 
-
-8. Check indexer internal logs for inbound forwarder connections in Splunk Web (Search) or via CLI:
-```bash
-# In Splunk Web (Search), set time window to last 15m:
-index=_internal component=TcpInput OR tcpin OR "incoming" | sort - _time | head 50
-
-# OR on indexer shell (tail splunkd.log)
-sudo tail -n 200 /opt/splunk/var/log/splunk/splunkd.log | egrep -i 'TcpInput|tcpin|incoming connection|forwarder' -n | tee ~/siem_lab/evidence/tc4-indexer-splunkd-$(date +%Y%m%dT%H%M%S).log
-```
-- Expected: messages showing an incoming connection from the forwarder IP (UBUNTU_IP) to the indexer.
-
-9. Search for test events or recent forwarder events
-In Splunk Web (Search & Reporting), time range = Last 15 minutes, run:
-```bash
-# quick check for forwarder host in any index
-host="$UBUNTU_HOSTNAME" OR host="$UBUNTU_IP" | stats count by index, sourcetype | sort - count
-
-# specifically check expected index and sourcetype
-index=$INDEX_HOSTS sourcetype=linux:auth $UBUNTU_IP | table _time host sourcetype _raw | sort -_time | head 20
-```
-
-### TC4 - Evidence To Collect
-- `siem_lab/evidence/tc4-forward-server-YYYYMMDDTHHMMSS.log` (output of splunk list forward-server)
-- `siem_lab/evidence/tc4-btool-inputs-YYYYMMDDTHHMMSS.log` (btool inputs)
-- `siem_lab/evidence/tc4-uf-log-YYYYMMDDTHHMMSS.log` (tail of UF splunkd.log)
-- `siem_lab/evidence/tc4-nc-YYYYMMDDTHHMMSS.log` (nc reachability test)
-- `siem_lab/evidence/tc4-logger-sent-YYYYMMDDTHHMMSS.log` (if used)
-- `siem_lab/evidence/tc4-indexer-splunkd-YYYYMMDDTHHMMSS.log` (indexer splunkd tail)
-
-**Owner:** You ,  **PRIORITY:** High
-
-
-### TC4 - Pass/Fail 
-**PASS** if:
-    - `splunk list forward-server` shows `INDEXER_IP:UF_PORT (Active)` for the forwarder, AND
-    - `btool inputs` shows `monitor:///var/log/auth.log` with `sourcetype = linux_secure` (or configured value), AND
-    - Splunk indexer shows incoming connection logs (`TcpInput`) and at least one event from the forwarder host appears in `index=$INDEX_UBUNTU` within 60 seconds of test generation.
-
-**FAIL** if:
-    - `splunk list forward-server` shows `Disconnected`/no server, OR
-    - `btool inputs` does not include the expected monitor stanza, OR
-    - UF logs show persistent `Retry` or `Unable to connect` errors, OR
-    - No events appear in Splunk despite host logs containing the test event.
-
-### Troubleshooting
-- If forward-server not set or disconnected
-```bash
-# on forwarder: set outputs.conf (replace INDEXER_IP and UF_PORT)
-sudo tee /opt/splunkforwarder/etc/system/local/outputs.conf > /dev/null <<'EOF'
-[tcpout]
-defaultGroup = indexers
-
-[tcpout:indexers]
-server = $INDEXER_IP:$UF_PORT
-
-[tcpout-server://$INDEXER_IP:$UF_PORT]
-disabled = false
-EOF
-
-# set ownership & restart
-sudo chown -R splunk:splunk /opt/splunkforwarder/etc/system/local
-sudo /opt/splunkforwarder/bin/splunk restart
-```
-- If inputs missing or wrong sourcetype
-```bash
-sudo tee /opt/splunkforwarder/etc/system/local/inputs.conf > /dev/null <<'EOF'
-[monitor:///var/log/auth.log]
-sourcetype = linux:auth
-index = $INDEX_HOSTS
-disabled = false
-EOF
-sudo chown -R splunk:splunk /opt/splunkforwarder/etc/system/local
-sudo /opt/splunkforwarder/bin/splunk restart
-```
-- If UF logs show permission errors — ensure correct ownership:
-```bash
-sudo chown -R splunk:splunk /opt/splunkforwarder
-```
-- If firewall blocks outgoing TCP to indexer, adjust firewall rules in pfSense or through command line. 
-
----
-
-### TC5 — Search & sourcetype verification in Splunk
+### TC3 — Search & Sourcetype Verification in Splunk
 
 **Objective:**  
 Confirm events from the Ubuntu forwarder (host) are indexed, discover the *actual* `sourcetype`(s) assigned, and update/author queries and dashboard panels so they reliably surface the host events (SSH auth failures, host logs).
@@ -484,7 +232,7 @@ Confirm events from the Ubuntu forwarder (host) are indexed, discover the *actua
 **Preconditions**
 - ENV block populated (`KALI_IP`, `UBUNTU_IP`, `INDEX_UBUNTU`, etc.).
 - You have Splunk Web access and permission to run searches, save events, and edit dashboards/saved searches.
-- You have generated test events (TC2) and/or completed network proof (TC3).
+- You have generated test events (TC2) and/or completed network proof (TC1).
 
 ---
 
@@ -504,7 +252,7 @@ index=* "$KALI_IP" | stats count by index, sourcetype | sort - count
 
 3. If you only know the index (search broadly)
 ```bash
-index=$INDEX_HOSTS | stats count by sourcetype | sort - count
+index=$INDEX_UBUNTU | stats count by sourcetype | sort - count
 ```
 - Record the top 3 sourcetypes you see. These are the values to use (or normalize) in dashboards/searches.
 
@@ -515,14 +263,14 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user" OR "authentication fail
 ```
 - Click a representative event → View → Raw. Copy the `_raw` text and save to a file locally:
 ```bash
-evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt
+evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt
 ```
 - Also note the `sourcetype` value shown in the event's metadata.
 
 5. Extract fields from the sample _raw (ad-hoc rex)
 - Use rex to extract the source IP and user (example handles common auth formats):
 ```bash
-index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
+index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
 | rex field=_raw "(?i)(?:from|rhost|SRC)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
 | rex field=_raw "(?i)(?:for|user|invalid user)[=:\s]*(?<user>[\w\-\.\@]+)"
 | table _time host sourcetype src_ip user _raw
@@ -574,20 +322,20 @@ index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
     ```
     - If `src_ip` or `user` are empty, tweak the `rex` using the sample `_raw` event saved earlier.
 
-### TC5 - Expected Results
+### TC3 - Expected Results
 - You can list the actual `sourcetype`(s) producing host/auth events (via `stats count by sourcetype`).
-- You have saved a sample `_raw` event to `evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt`.
+- You have saved a sample `_raw` event to `evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt`.
 - A flexible SPL (macro or OR clause) returns the test events and extracts `src_ip` and `user` correctly for the dashboard panel.
 
-### TC5 - Evidence To Collect
-- `evidence/tc5-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
-- `evidence/tc5-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
-- `evidence/tc5-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
-- Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/tc5-panel-YYYYMMDDTHHMMSS.png`
+### TC3 - Evidence To Collect
+- `evidence/TC3-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
+- `evidence/TC3-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
+- `evidence/TC3-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
+- Screenshot(s) of dashboard panel(s) after the query is updated: `evidence/TC3-panel-YYYYMMDDTHHMMSS.png`
 
 **Owner:** You ,  **PRIORITY:** High
 
-### TC5 - Pass/Fail Criteria
+### TC3 - Pass/Fail Criteria
 -**PASS** if: you identify the actual sourcetype(s) and you can run a dashboard/search query (macro or flexible SPL) that returns the test events and extracts `src_ip` (and `user`) reliably within the test window.
 - **FAIL** if: no events are returned by flexible searches, sample `_raw` cannot be found for the test timeframe, or field extractions fail repeatedly even after tuning `rex`.
 
@@ -595,7 +343,7 @@ index=$INDEX_HOSTS ("Failed password" OR "Invalid user") earliest=-15m
 - Verify time picker covers the test time. 
 - Run a very borad search to ensure events exist:
 ```bash
-index=$INDEX_HOSTS "$KALI_IP" | head 50
+index=$INDEX_UBUNTU "$KALI_IP" | head 50
 ```
 - Use the saved `_raw` event to craft exact rex patterns (copy/paste pieces from `_raw` into the regex).
 - When in doubt, set the UF to explicitly set sourcetype = `linux_secure` at the forwarder (preferred) so searches don’t need extra complexity.
