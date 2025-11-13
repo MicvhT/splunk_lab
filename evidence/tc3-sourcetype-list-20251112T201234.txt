@@ -1,0 +1,1 @@
+syslog linux_secure pfsense:syslog (icmp attempts)
