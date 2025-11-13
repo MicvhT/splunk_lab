@@ -1,0 +1,1 @@
+2025-11-12T19:28:52.617163-06:00 mikeyt-ubuntu sshd[11861]: Failed password for invalid user invaliduser from 192.168.60.3 port 43240 ssh2
