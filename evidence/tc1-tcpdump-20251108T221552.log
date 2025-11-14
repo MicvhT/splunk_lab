@@ -1,0 +1,63 @@
+22:16:21.366567 enp0s3 In  IP (tos 0x0, ttl 63, id 34787, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.60.3.43136 > 192.168.61.10.22: Flags [S], cksum 0xd673 (correct), seq 2600750114, win 64240, options [mss 1460,sackOK,TS val 3931636260 ecr 0,nop,wscale 10], length 0
+22:16:21.366610 enp0s3 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.61.10.22 > 192.168.60.3.43136: Flags [S.], cksum 0xfa8c (incorrect -> 0x0184), seq 4082332202, ack 2600750115, win 65160, options [mss 1460,sackOK,TS val 981021010 ecr 3931636260,nop,wscale 7], length 0
+22:16:21.369932 enp0s3 In  IP (tos 0x0, ttl 63, id 34788, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.60.3.43136 > 192.168.61.10.22: Flags [.], cksum 0x2e96 (correct), seq 1, ack 1, win 63, options [nop,nop,TS val 3931636264 ecr 981021010], length 0
+22:16:21.370345 enp0s3 In  IP (tos 0x0, ttl 63, id 34789, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.60.3.43136 > 192.168.61.10.22: Flags [F.], cksum 0x2e94 (correct), seq 1, ack 1, win 63, options [nop,nop,TS val 3931636265 ecr 981021010], length 0
+22:16:21.370346 enp0s3 In  IP (tos 0x0, ttl 63, id 43726, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.60.3.33772 > 192.168.61.10.80: Flags [S], cksum 0xaa74 (correct), seq 3113450983, win 64240, options [mss 1460,sackOK,TS val 3931636265 ecr 0,nop,wscale 10], length 0
+22:16:21.370382 enp0s3 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.61.10.80 > 192.168.60.3.33772: Flags [R.], cksum 0xf9b9 (correct), seq 0, ack 3113450984, win 0, length 0
+22:16:21.373085 enp0s3 In  IP (tos 0x0, ttl 63, id 18367, offset 0, flags [DF], proto TCP (6), length 60)
+    192.168.60.3.42894 > 192.168.61.10.443: Flags [S], cksum 0x6e4b (correct), seq 3681317671, win 64240, options [mss 1460,sackOK,TS val 3931636268 ecr 0,nop,wscale 10], length 0
+22:16:21.373112 enp0s3 Out IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.61.10.443 > 192.168.60.3.42894: Flags [R.], cksum 0xbd93 (correct), seq 0, ack 3681317672, win 0, length 0
+22:16:21.379215 enp0s3 Out IP (tos 0x0, ttl 64, id 21395, offset 0, flags [DF], proto TCP (6), length 52)
+    192.168.61.10.22 > 192.168.60.3.43136: Flags [.], cksum 0xfa84 (incorrect -> 0x2cc9), seq 1, ack 2, win 510, options [nop,nop,TS val 981021022 ecr 3931636265], length 0
+22:16:21.441199 enp0s3 Out IP (tos 0x0, ttl 64, id 21396, offset 0, flags [DF], proto TCP (6), length 95)
+    192.168.61.10.22 > 192.168.60.3.43136: Flags [P.], cksum 0xfaaf (incorrect -> 0xd3fa), seq 1:44, ack 2, win 510, options [nop,nop,TS val 981021084 ecr 3931636265], length 43: SSH: SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.14
+22:16:21.446422 enp0s3 In  IP (tos 0x0, ttl 63, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    192.168.60.3.43136 > 192.168.61.10.22: Flags [R], cksum 0x25c3 (correct), seq 2600750116, win 0, length 0
+22:16:26.427285 enp0s3 In  IP (tos 0x0, ttl 63, id 61780, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 1, length 64
+22:16:26.427322 enp0s3 Out IP (tos 0x0, ttl 64, id 5991, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 1, length 64
+22:16:27.429857 enp0s3 In  IP (tos 0x0, ttl 63, id 61935, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 2, length 64
+22:16:27.429879 enp0s3 Out IP (tos 0x0, ttl 64, id 6029, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 2, length 64
+22:16:28.434704 enp0s3 In  IP (tos 0x0, ttl 63, id 62126, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 3, length 64
+22:16:28.434732 enp0s3 Out IP (tos 0x0, ttl 64, id 6413, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 3, length 64
+22:16:29.435263 enp0s3 In  IP (tos 0x0, ttl 63, id 62315, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 4, length 64
+22:16:29.435286 enp0s3 Out IP (tos 0x0, ttl 64, id 6567, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 4, length 64
+22:16:30.437988 enp0s3 In  IP (tos 0x0, ttl 63, id 62378, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 5, length 64
+22:16:30.438012 enp0s3 Out IP (tos 0x0, ttl 64, id 6738, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 5, length 64
+22:16:31.440210 enp0s3 In  IP (tos 0x0, ttl 63, id 62596, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 6, length 64
+22:16:31.440237 enp0s3 Out IP (tos 0x0, ttl 64, id 6975, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 6, length 64
+22:16:32.441882 enp0s3 In  IP (tos 0x0, ttl 63, id 62751, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 7, length 64
+22:16:32.441930 enp0s3 Out IP (tos 0x0, ttl 64, id 7291, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 7, length 64
+22:16:33.445092 enp0s3 In  IP (tos 0x0, ttl 63, id 62926, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 8, length 64
+22:16:33.445114 enp0s3 Out IP (tos 0x0, ttl 64, id 7434, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 8, length 64
+22:16:34.447480 enp0s3 In  IP (tos 0x0, ttl 63, id 63162, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 9, length 64
+22:16:34.447504 enp0s3 Out IP (tos 0x0, ttl 64, id 7529, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 9, length 64
+22:16:35.450541 enp0s3 In  IP (tos 0x0, ttl 63, id 63356, offset 0, flags [DF], proto ICMP (1), length 84)
+    192.168.60.3 > 192.168.61.10: ICMP echo request, id 5, seq 10, length 64
+22:16:35.450563 enp0s3 Out IP (tos 0x0, ttl 64, id 7671, offset 0, flags [none], proto ICMP (1), length 84)
+    192.168.61.10 > 192.168.60.3: ICMP echo reply, id 5, seq 10, length 64
+

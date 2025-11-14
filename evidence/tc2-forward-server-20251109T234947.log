@@ -1,0 +1,6 @@
+Warning: Attempting to revert the SPLUNK_HOME ownership
+Warning: Executing "chown -R splunkfwd:splunkfwd /opt/splunkforwarder"
+Active forwards:
+	192.168.61.10:9997
+Configured but inactive forwards:
+	None
