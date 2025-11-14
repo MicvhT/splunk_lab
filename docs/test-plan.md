@@ -78,7 +78,7 @@ sudo tcpdump -n -i any host $KALI_IP and host $UBUNTU_IP -c 40 -vv > evidence/tc
 - `ping` receives replies if ICMP is allowed; if ICMP is blocked, `nc`/`tcpdump` to prove connectivity.
 - if tcpdump is run on indexer, you should see packets from `KALI_IP` to `UBUNTU_IP`
 
-### TC1 - Evidence To Collect
+### TC1 - Evidence Collected
 - `evidence/tc1-kali-ip-<timestamp>.log`
 - `evidence/tc1-ubuntu-ip-<timestamp>.log`
 - `evidence/tc1-nc-<timestamp>.log`
@@ -183,7 +183,7 @@ sudo tcpdump -n -i any host $KALI_IP and host $INDEXER_IP -c 40 -vv | tee eviden
 - UF `btool` output shows a `monitor:///var/log/auth.log` stanza with `sourcetype = linux_secure` (or the sourcetype you expect) and `index = $INDEX_UBUNTU`.
 - Splunk search (index = $INDEX_UBUNTU, sourcetype = linux_secure) returns at least one event containing $KALI_IP within 60 seconds of generation.
 
-### TC2 - Evidence To Collect
+### TC2 - Evidence Collected
 - `evidence/tc2-kali-ssh-attempts-YYYYMMDDTHHMMSS.log` (Kali terminal output)
 - `evidence/tc2-authlog-YYYYMMDDTHHMMSS.log` (Ubuntu grep of auth.log specifically Kali)
 - `evidence/tc2-authlog-last100-$(date +%Y%m%dT%H%M%S).log` (Ubuntu grep of last 100 lines of auth.log showing context)
@@ -239,13 +239,12 @@ Confirm events from the Ubuntu forwarder (host) are indexed, discover the *actua
 **Steps**
 1. Set time picker to the test window
 - In Splunk Web Search, set the time range to `Last 15 minutes` (or the period you ran tests).
-
-0R run another independent set of SSH attempts:
+- 0R run another independent set of SSH attempts and set the time range to the perdiod you ran tests (e.g. `Last 60 minutes`):
 ```bash
-for i in {1..8}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done
+for i in {1..5}; do ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no invaliduser@$UBUNTU_IP || true; sleep 1; done
 ```
 
-2. Find which sourcetypes exist for the host or IP (fast)
+2. Find which sourcetypes exist for the host or IP (fast) (e.g. `syslog`, `linux_secure`, and `pfsense:syslog`)
 - By **host**:
 ```bash
 index=* host="$UBUNTU_HOSTNAME" | stats count by index, sourcetype | sort - count
@@ -266,44 +265,42 @@ index=$INDEX_UBUNTU | stats count by sourcetype | sort - count
 ```bash
 index=$INDEX_UBUNTU ("Failed password" OR "Invalid user" OR "authentication failure" OR "SIEM_TEST_EVENT") | head 20
 ```
-- Click a representative event → View → Raw. Copy the `_raw` text and save to a file locally:
+- Choose a representative event and copy the `_raw` text and save to a file locally:
 ```bash
-tc3-sample-raw-YYYYMMDDTHHMMSS.txt
+tc3-sample-raw.txt
 ```
 - Also note the `sourcetype` value shown in the event's metadata.
 
 5. Extract fields from the sample _raw (ad-hoc rex)
 - Use rex to extract the source IP and user (example handles common auth formats):
 ```bash
-index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
-| rex field=_raw "(?i)(?:from|rhost|SRC)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
-| rex field=_raw "(?i)(?:for|user|invalid user)[=:\s]*(?<user>[\w\-\.\@]+)"
+index=$INDEX_UBUNTU "Failed password for" earliest=-60m
+| rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
 | table _time host sourcetype src_ip user _raw
 | sort - _time
 ```
-- Adjust the second rex if your _raw uses different phrasing for user names
 
 6. If sourcetypes vary, create a reusable macro (Search time normalization)
 - In Splunk Web: Settings → Advanced search → Search macros → New macro:
     - Name: lab_auth_sourcetypes
     - Definition:
     ```bash
-    (sourcetype=linux:auth OR sourcetype=auth OR sourcetype=syslog OR source="/var/log/auth.log")
+    (sourcetype=linux:auth OR sourcetype=auth OR sourcetype=linux_secure OR sourcetype=pfsense:syslog OR sourcetype=syslog OR source="/var/log/auth.log")
     ```
     - **Use**: Can now call with backticks: `lab_auth_sourcetypes`
 - Example using macro:
 ```bash
-`lab_auth_sourcetypes` "Failed password"
-| rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+index=* `lab_auth_sourcetypes` "Failed password for"
+| rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
 | stats count by src_ip
 ```
 
 7. Change dashboard panels to be flexible (one-off)
     - Replace sourcetype=linux_secure with the macro or a flexible clause:
     ```bash
-    index=$INDEX_UBUNTU (sourcetype=linux_secure OR sourcetype=linux:auth OR sourcetype=auth OR "Failed password")
-    | rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
-    | stats count as failed_attempts by src_ip
+    index=$INDEX_UBUNTU sourcetype IN (linux_secure, linux:auth, pfsense:log, syslog) "Failed password"
+    | rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+    | stats count AS failed_attempts BY src_ip
     | where failed_attempts > 0
     ```
 
@@ -320,10 +317,10 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
 9. Verify fields are extracted for dashboard use
     - Run a search that produces the fields your panels expect:
     ```bash
-    `lab_auth_sourcetypes` "Failed password" earliest=-15m
-    | rex "(?i)(?:from|rhost)[=:\s]*(?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
-    | rex "(?i)(?:for|user|invalid user)[=:\s]*(?<user>[\w\-\.\@]+)"
-    | stats count as attempts by src_ip, user | sort - attempts
+    index=$INDEX_UBUNTU "Failed password for" earliest=-60m
+    | rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\d{1,3}(?:\.\d{1,3}){3})"
+    | table _time host sourcetype src_ip user _raw
+    | sort - _time
     ```
     - If `src_ip` or `user` are empty, tweak the `rex` using the sample `_raw` event saved earlier.
 
@@ -332,7 +329,7 @@ index=$INDEX_UBUNTU ("Failed password" OR "Invalid user") earliest=-15m
 - You have saved a sample `_raw` event to `evidence/tc3-sample-raw-YYYYMMDDTHHMMSS.txt`.
 - A flexible SPL (macro or OR clause) returns the test events and extracts `src_ip` and `user` correctly for the dashboard panel.
 
-### TC3 - Evidence To Collect
+### TC3 - Evidence Collected
 - `evidence/tc3-sourcetype-list-YYYYMMDDTHHMMSS.txt` (copy/paste results of `stats count by sourcetype`)
 - `evidence/tc3-sample-raw-YYYYMMDDTHHMMSS.txt` (one full _raw event)
 - `evidence/tc3-rex-test-YYYYMMDDTHHMMSS.log` (output of the rex search that shows extracted fields)
@@ -362,12 +359,12 @@ Verify pfSense firewall logs (syslog) are forwarded to Splunk and ingested into 
 
 **Preconditions**
 - `ENV` block populated (`INDEXER_IP`, `SYSLOG_PORT`, `INDEX_PFSENSE`).
-- Splunk indexer reachable from pfSense (network validated by TC1/TC3).
+- Splunk indexer reachable from pfSense (network validated by TC1).
 - You have Splunk admin access to create a UDP/TCP input and view indexes.
 - You can access the pfSense GUI (or SSH/shell) to configure remote syslog.
 
-## Design notes / recommendation
-- **Preferred for lab:** Use **TCP syslog** (e.g., 1514 TCP) for reliability. If you must use UDP, it’s okay for tests but packets can be lost.
+## Design Notes / Recommendation
+- **Preferred for lab:** Use **UCP syslog** (e.g., 1514 UDP) for convenience. TCP can be set up with a little bit more configurations as UDP test packets have the possibility of being lost.
 - Configure Splunk to listen on the chosen port and index the incoming messages to `INDEX_PFSENSE` with an appropriate `sourcetype` (e.g., `pfsense:syslog`).
 
 **Steps**
@@ -380,9 +377,9 @@ Verify pfSense firewall logs (syslog) are forwarded to Splunk and ingested into 
    - Index: `INDEX_PFSENSE`  
    - Save.
 
-2. Alternatively, add `inputs.conf` on the indexer (app/local):
+2. Alternatively, add `inputs.conf` on the indexer (/local):
 ```bash
-# /opt/splunk/etc/apps/TA-local/local/inputs.conf
+# /opt/splunk/etc/system/local/inputs.conf
 [udp://1514]
 sourcetype = pfsense:syslog
 index = pfsense
@@ -405,8 +402,10 @@ sudo /opt/splunk/bin/splunk restart
 - (Using pfSense GUI)
 1. Log into pfSense GUI → Status → System Logs → Settings (or check your pfSense version: Remote syslog configuration is under Status > System Logs > Settings).
 2. Add a remote syslog server:
-    - Remote Syslog Servers (or "Remote Syslog Servers" table): add `INDEXER_IP` and port `SYSLOG_PORT` (specify protocol if UI exposes TCP/UDP).
     - For format, prefer `BSD`/`syslog` default. Set facility/priority defaults as desired.
+    - Ensure `Enable Remote Logging` checkbox is checked.
+    - Remote Syslog Servers (or "Remote Syslog Servers" table): add `INDEXER_IP` and port `SYSLOG_PORT`
+    - Remote Syslog Contents: check `Everything` checkbox. 
 - Save and apply.
 
 ### C — Send a test syslog message
@@ -417,8 +416,9 @@ logger -p daemon.info "PFTEST: test syslog from pfSense $(date -Iseconds) SRC=$K
 ```
 
 ### D — Confirm packets arrive at the indexer (OS-level)
-- Run this one indexer while test messgage is sent:
+- Run this one indexer while test message is sent:
 ```bash
+# for UDP
 sudo tcpdump -n -i any "host $PFSENSE_IP and udp port $SYSLOG_PORT" -c 5 -vv
 # or for TCP:
 sudo tcpdump -n -i any "host $PFSENSE_IP and port $SYSLOG_PORT" -c 5 -vv
@@ -443,12 +443,12 @@ index=* "pfsense TEST" OR "PFTEST" | stats count by index,sourcetype,host | sort
 - Splunk quickly (within 60 seconds) indexes the test event in `index=INDEX_PFSENSE` with the chosen `sourcetype` (e.g., `pfsense:syslog`).
 - `_raw` contains the test string and you can extract `SRC`, `DST`, `DPT` with `rex` or props/transforms.
 
-### TC4 - Evidence To Collect
-- `siem_lab/evidence/tc4-pfsense-config-YYYYMMDDTHHMMSS.png` (screenshot of pfSense Remote Syslog settings)
-- `siem_lab/evidence/tc4-syslog-send-YYYYMMDDTHHMMSS.log` (output of test send command)
-- `siem_lab/evidence/tc4-tcpdump-YYYYMMDDTHHMMSS.log` (tcpdump readable extract)
-- `siem_lab/evidence/tc4-splunk-event-YYYYMMDDTHHMMSS.txt` (sample `_raw` event saved from Splunk)
-- `siem_lab/evidence/tc4-splunk-inputs-YYYYMMDDTHHMMSS.log`(screenshot or `inputs.conf` showing udp/tcp stanza)
+### TC4 - Evidence Collected
+- `evidence/tc4-pfsense-config-YYYYMMDDTHHMMSS.png` (screenshot of pfSense Remote Syslog settings)
+- `evidence/tc4-syslog-send-YYYYMMDDTHHMMSS.log` (output of test send command)
+- `evidence/tc4-tcpdump-YYYYMMDDTHHMMSS.log` (tcpdump readable extract)
+- `evidence/tc4-splunk-event-YYYYMMDDTHHMMSS.txt` (sample `_raw` event saved from Splunk)
+- `evidence/tc4-splunk-inputs-YYYYMMDDTHHMMSS.log`(screenshot or `inputs.conf` showing udp/tcp stanza)
 
 **Owner:** You ,  **PRIORITY:** Medium
 
